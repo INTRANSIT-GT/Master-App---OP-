@@ -1,0 +1,628 @@
+{
+ "savedAt": "2026-10-16T19:48:57.122Z",
+ "cfg": {
+  "v": 3,
+  "inicio": "2026-10-05",
+  "wmDiv": 19,
+  "mw": {
+   "24321": [
+    41,
+    44
+   ]
+  },
+  "lines": {
+   "imp": {
+    "tt": null,
+    "t": null
+   },
+   "wm": {
+    "tt": 1200,
+    "t": 0.54
+   },
+   "cob": {
+    "tt": 3.5,
+    "t": 3.45
+   },
+   "adm": {
+    "tt": null,
+    "t": null
+   },
+   "evn": {
+    "tt": null,
+    "t": 37.39
+   },
+   "osD": {
+    "tt": null,
+    "t": 37.39
+   },
+   "osN": {
+    "tt": null,
+    "t": 37.39
+   },
+   "coord": {
+    "tt": null,
+    "t": null
+   },
+   "sun": {
+    "tt": 170,
+    "t": 0.2
+   },
+   "etq": {
+    "tt": 510,
+    "t": 0.2
+   },
+   "noc": {
+    "tt": 450,
+    "t": 0.2
+   },
+   "qua": {
+    "tt": 450,
+    "t": 0.2
+   },
+   "revE": {
+    "tt": 510,
+    "t": 0.2
+   },
+   "revS": {
+    "tt": 170,
+    "t": 0.2
+   },
+   "crk": {
+    "tt": 3.3333333,
+    "t": 2.25
+   },
+   "crkR": {
+    "tt": null,
+    "t": 0.2
+   },
+   "dFLUS": {
+    "tt": 720,
+    "t": null
+   },
+   "dGAL": {
+    "tt": 1440,
+    "t": 992.25
+   },
+   "dSAL": {
+    "tt": 720,
+    "t": 992.25
+   },
+   "dQUA": {
+    "tt": 960,
+    "t": null
+   },
+   "uniR": {
+    "tt": 650,
+    "t": 0.08
+   },
+   "revm": {
+    "tt": 650,
+    "t": null
+   },
+   "dc": {
+    "tt": 0.75,
+    "t": null
+   }
+  },
+  "maq": [
+   {
+    "sap": "300065357",
+    "n": "PEKEPAKES COOKIES MIX CAM 207GRX12X1",
+    "t": null,
+    "cxt": 72,
+    "tt": 440
+   },
+   {
+    "sap": "300064642",
+    "n": "CHOKIS CLASICA 5PACK PE CAM 190GX15X1",
+    "t": null,
+    "cxt": 72,
+    "tt": 400
+   },
+   {
+    "sap": "300066121",
+    "n": "GIRO 5PACK PE CAM 285GRX12X1",
+    "t": null,
+    "cxt": 72,
+    "tt": 380
+   },
+   {
+    "sap": "300030372",
+    "n": "ARCOIRIS PAQ 6U 450GX8X1",
+    "t": 2.08,
+    "cxt": 72,
+    "tt": 420
+   },
+   {
+    "sap": "300026425",
+    "n": "FLORENTINA FRESA 4U 332GX11X1",
+    "t": 2.39,
+    "cxt": 72,
+    "tt": 250
+   },
+   {
+    "sap": "300026426",
+    "n": "FLORENTINA CAJETA 4U 332GX11X1",
+    "t": 2.39,
+    "cxt": 72,
+    "tt": 250
+   },
+   {
+    "sap": "300030371",
+    "n": "8 PACK MAMUT 240GX12X1",
+    "t": 3,
+    "cxt": 72,
+    "tt": 380
+   },
+   {
+    "sap": "300060823",
+    "n": "CHOKIS CLAS MP NAVIDAD CAM 171GX20X1",
+    "t": null,
+    "cxt": 72,
+    "tt": 345
+   },
+   {
+    "sap": "300061006",
+    "n": "CHOKIS CLASICA 6PACK BOLSA 342GX12X1",
+    "t": 6.24,
+    "cxt": 72,
+    "tt": 360
+   },
+   {
+    "sap": "300061005",
+    "n": "FLORENTINAS FRESA 6PACK BOLSA 498GX10X1",
+    "t": 5.2,
+    "cxt": 72,
+    "tt": 375
+   },
+   {
+    "sap": "300030393",
+    "n": "LONCH MINI CHOKIS 6U 234GX8X1",
+    "t": 1.74,
+    "cxt": 42,
+    "tt": 173
+   },
+   {
+    "sap": "300030387",
+    "n": "GALLETA AVENA MANZANA 8U 304GX5X1",
+    "t": 0.82,
+    "cxt": 72,
+    "tt": 190
+   },
+   {
+    "sap": "300041744",
+    "n": "GALLETA AVENA MANZANA CANELA 152GRX12X1",
+    "t": null,
+    "cxt": 72,
+    "tt": 300
+   },
+   {
+    "sap": "300030386",
+    "n": "GALLETA AVENA GRANOLA 8U 304GX5X1",
+    "t": null,
+    "cxt": 72,
+    "tt": 190
+   },
+   {
+    "sap": "300041746",
+    "n": "GALLETA AVENA GRANOLA 152GX12X1",
+    "t": null,
+    "cxt": 72,
+    "tt": 300
+   },
+   {
+    "sap": "300062457",
+    "n": "PACK 6U REFA CS 107GX12X1",
+    "t": 9.43,
+    "cxt": 42,
+    "tt": 460
+   },
+   {
+    "sap": "300062455",
+    "n": "PACK 7U REFA CS 122GX10X1",
+    "t": 7.89,
+    "cxt": 42,
+    "tt": 451
+   },
+   {
+    "sap": "300062456",
+    "n": "PACK 12U LONCHERA CS 210GX5X1",
+    "t": 5.14,
+    "cxt": 42,
+    "tt": 380
+   },
+   {
+    "sap": "300062454",
+    "n": "PACK 14U LONCHERA CS 244GX5X1",
+    "t": 5.64,
+    "cxt": 42,
+    "tt": 420
+   },
+   {
+    "sap": "300062459",
+    "n": "PACK 12U TORTRIX BBQ CS 204GX10X1",
+    "t": 6.15,
+    "cxt": 42,
+    "tt": 345
+   },
+   {
+    "sap": "300062458",
+    "n": "PACK 12U TORTRIX LIMON CS 204GX10X1",
+    "t": 6.15,
+    "cxt": 42,
+    "tt": 345
+   },
+   {
+    "sap": "300059390",
+    "n": "CUBETA TORTRIX LIMON 360GX12X1",
+    "t": 9.6,
+    "cxt": 28,
+    "tt": 144
+   },
+   {
+    "sap": "300059378",
+    "n": "CUBETA TORTRIX BARBA 360GX12X1",
+    "t": 9.6,
+    "cxt": 28,
+    "tt": 144
+   },
+   {
+    "sap": "300061661",
+    "n": "TORTRIX BARBACOA DOC OT CT 204GX15X1",
+    "t": 6.15,
+    "cxt": 42,
+    "tt": 126
+   },
+   {
+    "sap": "300061660",
+    "n": "TORTRIX LIMON DOC OT CT 204GX15X1",
+    "t": 6.15,
+    "cxt": 42,
+    "tt": 126
+   },
+   {
+    "sap": "300025795",
+    "n": "ARCOIRIS 8U 227.2GX12X1",
+    "t": 4.28,
+    "cxt": 72,
+    "tt": null
+   },
+   {
+    "sap": "300042833",
+    "n": "CHOKIS CLASICA 8 PACK 228GRX12X1",
+    "t": 4.14,
+    "cxt": 72,
+    "tt": null
+   }
+  ],
+  "labels": [
+   {
+    "id": "3X2",
+    "upr": 2500,
+    "rib": "R76",
+    "ry": 7500,
+    "p": 103.75
+   },
+   {
+    "id": "4X2",
+    "upr": 2500,
+    "rib": "R110",
+    "ry": 6300,
+    "p": 121.25
+   },
+   {
+    "id": "1X1",
+    "upr": 15000,
+    "rib": "R76",
+    "ry": 29167,
+    "p": 210
+   },
+   {
+    "id": "1.25X0.5",
+    "upr": 30000,
+    "rib": "R110",
+    "ry": 19500,
+    "p": 135
+   },
+   {
+    "id": "2.36X1.58",
+    "upr": 5000,
+    "rib": "R76",
+    "ry": 7083,
+    "p": 155
+   },
+   {
+    "id": "1.5X1",
+    "upr": 10000,
+    "rib": "R76",
+    "ry": 20833,
+    "p": 85
+   }
+  ],
+  "ribbons": [
+   {
+    "id": "R110",
+    "n": "Ribbon 110X360",
+    "p": 90
+   },
+   {
+    "id": "R76",
+    "n": "Ribbon 83X300",
+    "p": 76
+   }
+  ],
+  "bag": {
+   "id": "BOLSA",
+   "n": "Bolsa transparente 9X15X2.5",
+   "p": 0.141,
+   "saps": [
+    [
+     "300030372",
+     8
+    ],
+    [
+     "300061006",
+     12
+    ],
+    [
+     "300061005",
+     10
+    ]
+   ]
+  },
+  "base": {
+   "d": "2026-10-13",
+   "lab": {
+    "3X2": 41000,
+    "1.5X1": 10500,
+    "1X1": 52000,
+    "2.36X1.58": 33000,
+    "4X2": 117000,
+    "1.25X0.5": 40000
+   },
+   "rib": {
+    "R110": 25,
+    "R76": 62
+   },
+   "bag": 9200
+  },
+  "matLab": [
+   {
+    "k": "300013550",
+    "sap": "300013550",
+    "n": "FRITOS MILD CHEDDAR 90ZX24X1",
+    "lab": "2.36X1.58",
+    "ok": true,
+    "al": [
+     "FL MILD CHEDDER CHEESE DIP 9OZX24X1"
+    ]
+   },
+   {
+    "k": "300013564",
+    "sap": "300013564",
+    "n": "TOSTITOS CON QUESO 15OZX12X1",
+    "lab": "4X2",
+    "ok": true
+   },
+   {
+    "k": "300013565",
+    "sap": "300013565",
+    "n": "TOSTITOS MILD SALSA 15.5OZX12X1",
+    "lab": "4X2",
+    "ok": true,
+    "al": [
+     "TOSTITOS MILD RED SALSA 15.5OZX12X1"
+    ]
+   },
+   {
+    "k": "300013879",
+    "sap": "300013879",
+    "n": "LAYS SOUR C&O 1.5OZX32X1",
+    "lab": "4X2",
+    "ok": true
+   },
+   {
+    "k": "300013960",
+    "sap": "300013960",
+    "n": "TOSTITOS SPINACH DIP 15OZX12X1",
+    "lab": "4X2",
+    "ok": true
+   },
+   {
+    "k": "300017094",
+    "sap": "300017094",
+    "n": "CHEETOS CHEDDAR JALAPEÑO 8OZX10X1",
+    "lab": "4X2",
+    "ok": true,
+    "al": [
+     "CHEETOS CHEEDAR JAL 8 OZX10X1"
+    ]
+   },
+   {
+    "k": "300017098",
+    "sap": "300017098",
+    "n": "LAYS KETTLE JAL CS 60.2GX28X1",
+    "lab": "4X2",
+    "ok": true,
+    "al": [
+     "LAYS KETTLE JALAPEÑO 2.125OZX28X1"
+    ]
+   },
+   {
+    "k": "300025349",
+    "sap": "300025349",
+    "n": "SUNCHIPS HARVEST CHED 1.5 OZX32X1",
+    "lab": "SUN",
+    "ok": true,
+    "al": [
+     "SUNCHIPS HARVEST 42.5GX32X1"
+    ]
+   },
+   {
+    "k": "300025900",
+    "sap": "300025900",
+    "n": "CHEETOS CRUNCHY CHEDDAR 8OZX10X1",
+    "lab": "4X2",
+    "ok": true
+   },
+   {
+    "k": "300027403",
+    "sap": "300027403",
+    "n": "QUICK QUAKER OATS 18OZX12X1",
+    "lab": "2.36X1.58",
+    "ok": true
+   },
+   {
+    "k": "300027488",
+    "sap": "300027488",
+    "n": "CHEETOS CRUNCHY 2.125OZX44X1",
+    "lab": "4X2",
+    "ok": true
+   },
+   {
+    "k": "300027642",
+    "sap": "300027642",
+    "n": "LAYS BBQ 1.5OZX32X1",
+    "lab": "4X2",
+    "ok": true
+   },
+   {
+    "k": "300028369",
+    "sap": "300028369",
+    "n": "QUAKER LIFE CEREAL CINNAMON 18OZX14X1",
+    "lab": "4X2",
+    "ok": true
+   },
+   {
+    "k": "300039384",
+    "sap": "300039384",
+    "n": "LAYS BAKED CS 1.50OZX32X1",
+    "lab": "4X2",
+    "ok": true,
+    "al": [
+     "LAYS BKD 1.5OZX32X1"
+    ]
+   },
+   {
+    "k": "300041849",
+    "sap": "300041849",
+    "n": "CRACKER JACK CARAMEL 3.125OZX28X1",
+    "lab": "4X2",
+    "ok": true
+   },
+   {
+    "k": "300054251",
+    "sap": "300054251",
+    "n": "PEARL MCO PCMIX REGULAR 2LBX12X1",
+    "lab": "2.36X1.58",
+    "ok": true
+   },
+   {
+    "k": "300054397",
+    "sap": "300054397",
+    "n": "INTRTE CNC REGULAR 12.6OZX14X1",
+    "lab": "1.5X1",
+    "ok": true
+   },
+   {
+    "k": "300054398",
+    "sap": "300054398",
+    "n": "INTRTE CNC BERRY 11.7OZX14X1",
+    "lab": "1.5X1",
+    "ok": true
+   },
+   {
+    "k": "300054673",
+    "sap": "300054673",
+    "n": "PEARL MCO PCMIX REGULAR 1LBX12X1",
+    "lab": "2.36X1.58",
+    "ok": true
+   },
+   {
+    "k": "300057593",
+    "sap": "300057593",
+    "n": "CRACKETS MINISW CAM 38GRX64X1",
+    "lab": "none",
+    "ok": true
+   },
+   {
+    "k": "300059045",
+    "sap": "300059045",
+    "n": "PEARL MCO REG SYRUP INTL 24OZX12X1",
+    "lab": "2.36X1.58",
+    "ok": true
+   },
+   {
+    "k": "300059049",
+    "sap": "300059049",
+    "n": "PEARL MCO REG SYRUP INTL 12OZX12X1",
+    "lab": "2.36X1.58",
+    "ok": true
+   },
+   {
+    "k": "300060760",
+    "sap": "300060760",
+    "n": "GIRO CAM 57GX80X1",
+    "lab": "1X1",
+    "ok": true
+   },
+   {
+    "k": "300067252",
+    "sap": "300067252",
+    "n": "GIRO EXP CAM NC 57GRX88X1",
+    "lab": "1X1",
+    "ok": true
+   },
+   {
+    "k": "300060770",
+    "sap": "300060770",
+    "n": "GIRO CAM 95GRX52X1",
+    "lab": "1X1",
+    "ok": true,
+    "al": [
+     "GIRO RG 95GRX52X1"
+    ]
+   },
+   {
+    "k": "300061991",
+    "sap": "300061991",
+    "n": "LAYS BBQ 6.6OZX15X1",
+    "lab": "4X2",
+    "ok": true,
+    "al": [
+     "LAYS BBQ 6.5OZX15X1"
+    ]
+   },
+   {
+    "k": "300062020",
+    "sap": "300062020",
+    "n": "LAYS SOUR CREAM ON 6.5OZX15X1",
+    "lab": "4X2",
+    "ok": true
+   },
+   {
+    "k": "300030371",
+    "sap": "300030371",
+    "n": "8 PACK MAMUT 240GX12X1",
+    "lab": "2.36X1.58",
+    "ok": true
+   },
+   {
+    "k": "n:CHEETOS POFFS CS 29GX54X1",
+    "sap": "",
+    "n": "CHEETOS POFFS CS 29GX54X1 (Walmart)",
+    "lab": "1.5X1",
+    "ok": true
+   }
+  ],
+  "itemUse": {
+   "L:3X2": "Walmart y Unisuper: 1 etiqueta por caja.",
+   "L:4X2": "La mayoría de los etiquetados (Lays, Cheetos, Tostitos, Fritos…) y Sunchips.",
+   "L:1X1": "Sunchips, Giro 57 g y Giro 95 g.",
+   "L:1.25X0.5": "Solo Sunchips.",
+   "L:2.36X1.58": "Pack Mamut y varios productos Quaker.",
+   "L:1.5X1": "Cheetos de Walmart y algunos productos Quaker.",
+   "BOLSA": "Solo los 3 pack de maquila: Arcoiris 6U, Chokis 6pack y Florentinas 6pack."
+  }
+ }
+}

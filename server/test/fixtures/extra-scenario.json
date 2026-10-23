@@ -1,0 +1,30 @@
+{
+  "_nota": "Datos sintéticos añadidos al snapshot para ejercitar reglas que el snapshot no cubre (requerimientos, merma, crackets, Sunchips, SAP desconocido, normalización de etiquetas).",
+  "ed": { "maq": [[20733, 41, "999999999", "PRODUCTO NUEVO SIN CATALOGO", 50]] },
+  "req": [
+    { "id": "r1", "f": 20734, "area": "wm",  "oc": "OC-100", "monto": 415, "prov": "Etipack", "cant": 4,    "tipo": "Etiqueta", "mat": "3X2",  "obs": "" },
+    { "id": "r2", "f": 20734, "area": "etq", "oc": "OC-101", "monto": 280, "prov": "Etipack", "cant": 3,    "tipo": "Ribbon",   "mat": "R76",  "obs": "" },
+    { "id": "r3", "f": 20735, "area": "maq", "oc": "OC-102", "monto": 705, "prov": "Plasticos", "cant": 5000, "tipo": "Bolsa",    "mat": "BOLSA", "obs": "" },
+    { "id": "r4", "f": 20735, "area": "wm",  "oc": "OC-103", "monto": 250, "prov": "Etipack", "cant": 2,    "tipo": "Directo",  "mat": "Etiqueta fluorescente 0.75X0.40625", "obs": "" },
+    { "id": "r5", "f": 20736, "area": "etq", "oc": "OC-104", "monto": 400, "prov": "Varios",  "cant": 1,    "tipo": "Otro",     "mat": "Selladora manual", "obs": "" },
+    { "id": "r6", "f": 20736, "area": "gen", "oc": "OC-105", "monto": 120, "prov": "Varios",  "cant": 1,    "tipo": "Otro",     "mat": "Papeleria", "obs": "" },
+    { "id": "r7", "f": 20737, "area": "etq", "oc": "OC-106", "monto": 600, "prov": "Etipack", "cant": 2,    "tipo": "Etiqueta", "mat": "4X2",  "obs": "" }
+  ],
+  "merma": [
+    { "id": "m1", "f": 20735, "item": "BOLSA", "u": 120, "mot": "dañadas" },
+    { "id": "m2", "f": 20735, "item": "L:3X2", "u": 200, "mot": "mal impresas" },
+    { "id": "m3", "f": 20736, "item": "L:4X2", "u": 300, "mot": "mal impresas" }
+  ],
+  "cap": {
+    "crk": [
+      { "id": "c1", "f": 20733, "fact": "F1", "pres": "GALLETA", "prod": "CRACKETS MINISW CAM 38GRX64X1", "cajas": 100, "u": 0, "rev": 0,  "mal": 5, "st": "FINALIZADO", "obs": "" },
+      { "id": "c2", "f": 20734, "fact": "F2", "pres": "GALLETA", "prod": "CRACKETS MINISW CAM 38GRX48X1", "cajas": 60,  "u": 0, "rev": 30, "mal": 2, "st": "FINALIZADO", "obs": "" },
+      { "id": "c3", "f": 20735, "fact": "F3", "pres": "GALLETA", "prod": "CRACKETS SIN PATRON", "cajas": 0, "u": 0, "rev": 0, "mal": 3, "st": "PARCIAL", "obs": "" }
+    ],
+    "sun": [ { "id": "s1", "f": 20733, "fact": "F4", "pres": "FLUS", "prod": "SUNCHIPS HARVEST CHED 1.5 OZX32X1", "cajas": 10, "u": 500, "rev": 20, "mal": 0, "st": "FINALIZADO", "obs": "" } ],
+    "noc": [ { "id": "n1", "f": 20733, "fact": "F5", "pres": "FLUS", "prod": "LAYS BBQ 1.5OZX32X1", "lab": "4X2", "cajas": 20, "u": 640, "rev": 10, "mal": 1, "st": "FINALIZADO", "obs": "" } ],
+    "qua": [ { "id": "q1", "f": 20734, "fact": "F6", "pres": "QUAKER", "prod": "QUICK QUAKER OATS 18OZX12X1", "lab": "2.36*1.58", "cajas": 5, "u": 60, "rev": 0, "mal": 0, "st": "FINALIZADO", "obs": "" } ],
+    "etq": [ { "id": "e1", "f": 20736, "fact": "F7", "pres": "FLUS", "prod": "GIRO CAM 57GX80X1", "lab": "1X1 ", "cajas": 8, "u": 640, "rev": 0, "mal": 0, "st": "FINALIZADO", "obs": "" } ],
+    "w": { "20738": { "imp": [3, 2, 0, 1, 0, 0, 0], "coord": [22, 22, 22, 22, 22, 22, 0], "asis": 1650 } }
+  }
+}
