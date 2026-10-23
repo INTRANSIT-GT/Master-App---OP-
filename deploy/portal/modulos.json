@@ -1,0 +1,4 @@
+[
+  { "id": "transportes", "nombre": "Transportes", "descripcion": "Viajes, liquidaciones, comercial y torre de control.", "ruta": "/transportes/" },
+  { "id": "operaciones", "nombre": "Operaciones", "descripcion": "Producción, horas, compras, inventario y cobro.", "ruta": "/operaciones/" }
+]

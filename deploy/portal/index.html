@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>In Transit</title>
+<link rel="icon" type="image/png" href="isologo.png">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700;800&display=swap">
+<style>
+:root{--surface:#fff;--tint:#EAF4FB;--blue:#003CA6;--blue2:#0074C8;--ocean:#14A1FF;--text:#5E5E5E;--muted:#666;--border:#E6E6E6;--red:#C21B0B;--shadow:0 2px 8px rgba(0,0,0,.08);
+--display:"Avenir Next","Nunito Sans",Arial,sans-serif;--body:Arial,"Helvetica Neue",Helvetica,sans-serif}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:16px;background:var(--tint);color:var(--text);font:15px/22px var(--body)}
+main{width:100%;max-width:440px;background:var(--surface);border:1px solid var(--border);border-radius:8px;box-shadow:var(--shadow);padding:32px}
+img.logo{height:44px;margin-bottom:16px;display:block}
+h1{margin:0 0 4px;font:700 24px/30px var(--display);color:var(--blue)}
+p{margin:0 0 16px;color:var(--muted)}
+label{display:block;margin-top:16px;font:600 12px/16px var(--display);color:var(--text)}
+input{width:100%;margin-top:4px;min-height:38px;padding:7px 10px;border:1px solid #D6D6D6;border-radius:6px;font:inherit;color:var(--text)}
+input:focus,button:focus-visible,a.mod:focus-visible{outline:2px solid var(--blue2);outline-offset:2px}
+button.btn{width:100%;margin-top:24px;min-height:40px;border:1px solid var(--blue);border-radius:8px;background:var(--blue);color:#fff;font:700 13px var(--display);letter-spacing:.02em;text-transform:uppercase;cursor:pointer}
+button.btn:hover{background:var(--blue2);border-color:var(--blue2)}
+button.btn[disabled]{opacity:.5;cursor:wait}
+button.link{margin-top:16px;border:0;background:none;color:var(--blue2);font:600 13px var(--display);cursor:pointer;padding:0}
+.err{margin-top:16px;padding:8px 12px;border-radius:6px;background:#FDEDEB;color:var(--red);font-size:13px}
+.mods{display:flex;flex-direction:column;gap:16px;margin:24px 0 0}
+a.mod{display:block;padding:16px;border:1px solid var(--border);border-radius:8px;box-shadow:var(--shadow);text-decoration:none;color:inherit}
+a.mod:hover{background:var(--tint)}
+a.mod b{display:block;font:700 18px/24px var(--display);color:var(--blue)}
+a.mod span{font-size:13px;color:var(--muted)}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+<main id="app" aria-live="polite">
+  <img class="logo" src="logo.png" alt="In Transit">
+  <section id="cargando"><p>Cargando…</p></section>
+
+  <form id="login" hidden>
+    <h1>Iniciar sesión</h1>
+    <p>Entra con tu usuario de In Transit. Verás los módulos que tienes asignados.</p>
+    <label for="email">Correo</label><input id="email" type="email" autocomplete="username" required>
+    <label for="pass">Contraseña</label><input id="pass" type="password" autocomplete="current-password" required>
+    <div class="err" id="loginErr" role="alert" hidden></div>
+    <button class="btn" id="entrar" type="submit">Entrar</button>
+  </form>
+
+  <section id="elegir" hidden>
+    <h1>Elige un módulo</h1>
+    <p id="saludo"></p>
+    <div class="mods" id="mods"></div>
+    <button class="link" id="salir1" type="button">Cerrar sesión</button>
+  </section>
+
+  <section id="sinmod" hidden>
+    <h1>Sin módulos asignados</h1>
+    <p>Tu usuario todavía no tiene ningún módulo. Pide a un administrador que te asigne uno y vuelve a entrar.</p>
+    <button class="link" id="salir2" type="button">Cerrar sesión</button>
+  </section>
+
+  <section id="falta" hidden>
+    <h1>Portal sin configurar</h1>
+    <p>Falta el archivo <b>config.js</b> con la URL y la clave publicable de Supabase. Copia <b>config.example.js</b> como <b>config.js</b> y completa los datos.</p>
+  </section>
+</main>
+<script src="config.js"></script>
+<script>
+(function () {
+  var C = window.PORTAL_CONFIG || {}, $ = function (id) { return document.getElementById(id); };
+  var panels = ['cargando', 'login', 'elegir', 'sinmod', 'falta'];
+  function show(id) { panels.forEach(function (p) { $(p).hidden = p !== id; }); }
+  if (!C.supabaseUrl || !C.supabaseKey || /TU-PROYECTO/.test(C.supabaseUrl)) { show('falta'); return; }
+  var url = C.supabaseUrl.replace(/\/+$/, '');
+  var KEY = C.storageKey || 'sb-' + new URL(url).hostname.split('.')[0] + '-auth-token';   // la misma clave que usa supabase-js
+  var q = new URLSearchParams(location.search), want = q.get('modulo'), force = q.get('elegir') === '1';
+
+  function read() { try { var s = JSON.parse(localStorage.getItem(KEY)); return s && s.access_token ? s : null; } catch (e) { return null; } }
+  function write(s) { try { localStorage.setItem(KEY, JSON.stringify(s)); } catch (e) {} }
+  function claims(t) { try { return JSON.parse(atob(t.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'))); } catch (e) { return {}; } }
+  function token(path, body) {
+    return fetch(url + '/auth/v1/token?grant_type=' + path, { method: 'POST', headers: { apikey: C.supabaseKey, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  }
+  function assigned(access) {   // app_metadata.modulos: { operaciones: 'supervisor', ... } o ['operaciones', ...]
+    var m = (claims(access).app_metadata || {}).modulos;
+    return Array.isArray(m) ? m : (m && typeof m === 'object' ? Object.keys(m) : []);
+  }
+  function validSession() {
+    var s = read(); if (!s) return Promise.resolve(null);
+    var exp = s.expires_at || claims(s.access_token).exp || 0;
+    if (exp - 60 > Date.now() / 1000) return Promise.resolve(s);
+    return token('refresh_token', { refresh_token: s.refresh_token }).then(function (r) { return r.ok ? r.json() : null; }).then(function (j) {
+      if (!j) return null;
+      var n = Object.assign({}, s, { access_token: j.access_token, refresh_token: j.refresh_token || s.refresh_token, expires_at: j.expires_at || Math.floor(Date.now() / 1000) + (j.expires_in || 3600), user: j.user || s.user });
+      write(n); return n;
+    }).catch(function () { return null; });
+  }
+  function logout() {
+    var s = read();
+    if (s) fetch(url + '/auth/v1/logout', { method: 'POST', headers: { apikey: C.supabaseKey, Authorization: 'Bearer ' + s.access_token } }).catch(function () {});
+    try { localStorage.removeItem(KEY); sessionStorage.removeItem('ops_portal_redirect'); } catch (e) {}
+    show('login');
+  }
+  function route(s, registry) {
+    var ids = assigned(s.access_token), mine = registry.filter(function (m) { return ids.indexOf(m.id) >= 0; });
+    var pick = want && mine.filter(function (m) { return m.id === want; })[0];
+    if (pick && !force) { location.replace(pick.ruta); return; }
+    if (!mine.length) { show('sinmod'); return; }
+    if (mine.length === 1 && !force) { location.replace(mine[0].ruta); return; }
+    var u = (s.user && s.user.email) || claims(s.access_token).email || '';
+    $('saludo').textContent = u ? 'Sesión de ' + u + '.' : '';
+    var box = $('mods'); box.textContent = '';
+    mine.forEach(function (m) {
+      var a = document.createElement('a'); a.className = 'mod'; a.href = m.ruta;
+      var b = document.createElement('b'); b.textContent = m.nombre;
+      var d = document.createElement('span'); d.textContent = m.descripcion || '';
+      a.appendChild(b); a.appendChild(d); box.appendChild(a);
+    });
+    show('elegir');
+  }
+
+  var registry = [];
+  fetch('modulos.json', { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (r) { registry = r; return validSession(); }).then(function (s) {
+    if (s) route(s, registry); else show('login');
+  }).catch(function () { show('login'); });
+
+  $('login').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var btn = $('entrar'), err = $('loginErr'); btn.disabled = true; err.hidden = true;
+    token('password', { email: $('email').value.trim(), password: $('pass').value }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); }).then(function (x) {
+      if (!x.ok) { err.textContent = x.j.error_code === 'invalid_credentials' || x.j.error === 'invalid_grant' ? 'Correo o contraseña incorrectos.' : 'No se pudo iniciar sesión. Intenta de nuevo.'; err.hidden = false; return; }
+      var s = Object.assign({}, x.j, { expires_at: x.j.expires_at || Math.floor(Date.now() / 1000) + (x.j.expires_in || 3600) });
+      write(s); $('pass').value = ''; route(s, registry);
+    }).catch(function () { err.textContent = 'No hay conexión con el servidor de acceso.'; err.hidden = false; }).then(function () { btn.disabled = false; });
+  });
+  $('salir1').addEventListener('click', logout); $('salir2').addEventListener('click', logout);
+})();
+</script>
+</body>
+</html>

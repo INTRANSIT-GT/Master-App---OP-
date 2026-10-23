@@ -1,0 +1,31 @@
+# Servidor común: portal + Transportes (Master App) + Operaciones.
+#   cp .env.example .env   (completa todo, incluida la sección «Módulo»)
+#   cp deploy/portal/config.example.js deploy/portal/config.js   (URL y clave publicable de Supabase)
+#   TRANSPORTES_DIR=../Master-App docker compose -f docker-compose.integrado.yml up -d --build
+services:
+  db:
+    image: postgres:16
+    environment: { POSTGRES_USER: omnia, POSTGRES_PASSWORD: "${POSTGRES_PASSWORD}", POSTGRES_DB: omnia }
+    volumes: [pgdata:/var/lib/postgresql/data]
+    restart: unless-stopped
+  operaciones:
+    build: .
+    env_file: .env
+    environment:
+      BASE_PATH: /operaciones
+      AUTH_MODE: sso
+      PORTAL_URL: /
+    depends_on: [db]
+    restart: unless-stopped        # sin puertos publicados: solo el proxy lo alcanza
+  proxy:
+    image: caddy:2
+    ports: ["80:80", "443:443"]
+    environment: { SITE_ADDRESS: "${SITE_ADDRESS:-:80}" }
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./deploy/portal:/srv/portal:ro
+      - "${TRANSPORTES_DIR:-../Master-App}:/srv/transportes:ro"
+      - caddy_data:/data
+    depends_on: [operaciones]
+    restart: unless-stopped
+volumes: { pgdata: {}, caddy_data: {} }
