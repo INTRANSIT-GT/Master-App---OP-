@@ -152,5 +152,6 @@ Comando: `node scripts/intransit-startup.cjs` con JSON sintético por stdin, en 
 | Función en vivo, sesión real de Supabase (13 llamadas) | PASA: meta, resumen (costo Q46 107.70), dashboard, catálogo, opciones de compras, PDF, Excel, borrador del operador, anulación, permisos, 401 sin sesión |
 | API REST pública con `Accept-Profile: operaciones` | Rechazada (`PGRST106`: solo `public` y `graphql_public`) |
 | Build de Pages servido en local en `/Master-App---OP-/app/` + Chrome | PASA: entrar, clave mala, 8 pestañas, Usuarios, salir, operador sin Comercial; 0 errores de página |
+| Publicado (`89cde15`, Pages «built») en `intransit-gt.github.io/Master-App---OP-/` + Chrome | PASA: la raíz lleva a `app/`, entra en ~5 s, Dashboard con cifras, 7 pestañas, salir; 0 errores. `demo/` sigue respondiendo |
 
-**No verificado:** la app ya publicada en `intransit-gt.github.io` (se verifica después del push); importar Excel a través de la función; uso simultáneo de varias personas; límites del plan gratuito de Supabase.
+**No verificado:** importar Excel a través de la función; uso simultáneo de varias personas; límites del plan gratuito de Supabase.
