@@ -200,3 +200,18 @@ export async function purchaseHistory(f: { from?: string; to?: string; supplier?
   return (await pool.query(`SELECT po.number, po.po_date, po.status, po.supplier, po.currency, po.exchange_rate, l.code, l.description, l.mat_type, l.mat_ref, l.qty, l.unit_price, l.amount, round(l.amount * po.exchange_rate, 2) AS amount_gtq
     FROM purchase_order_lines l JOIN purchase_orders po ON po.id = l.po_id WHERE ${w.join(' AND ')} ORDER BY po.po_date DESC, po.seq DESC, l.line_no`, v)).rows.map(toApi);
 }
+
+// Listas desplegables del formulario: los valores ya usados en órdenes no anuladas (los más usados primero).
+const OPTION_FIELDS = ['costCenter', 'serviceType', 'paymentMethod', 'bank', 'accountType', 'requestedBy', 'deliverTo', 'deliveryPlace',
+  'preparedBy', 'preparedPosition', 'approvedBy', 'approvedPosition'] as const;
+const SUPPLIER_FIELDS = ['supplierContact', 'supplierAddress', 'supplierNit', 'supplierPhone', 'creditDays', 'paymentMethod', 'bankAccount', 'bank', 'accountType'] as const;
+export async function purchaseOptions() {
+  const out: Record<string, unknown[]> = {};
+  for (const k of OPTION_FIELDS)
+    out[k] = (await pool.query(`SELECT trim(${COL[k]}) AS v FROM purchase_orders WHERE status <> 'anulada' AND nullif(trim(${COL[k]}), '') IS NOT NULL
+      GROUP BY 1 ORDER BY count(*) DESC, 1 LIMIT 200`)).rows.map((r) => r.v);
+  // un proveedor por nombre, con los datos de su orden más reciente: el formulario los copia al elegirlo
+  out.suppliers = (await pool.query(`SELECT DISTINCT ON (upper(trim(supplier))) trim(supplier) AS supplier, ${SUPPLIER_FIELDS.map((k) => COL[k]).join(', ')}
+    FROM purchase_orders WHERE status <> 'anulada' ORDER BY upper(trim(supplier)), po_date DESC, seq DESC`)).rows.map(toApi);
+  return out;
+}

@@ -104,6 +104,7 @@ table{border-collapse:collapse;width:100%}
 .field{display:flex;flex-direction:column;gap:4px;min-width:0}.field.w2{grid-column:span 2}.field.w3{grid-column:span 3}
 .field label{font-family:var(--font-display);font-size:12px;font-weight:600;color:var(--text-control)}
 .input,.field input,.field select,.field textarea{border:1px solid var(--gray-light);border-radius:var(--radius-sm);padding:7px 10px;background:var(--surface);min-height:38px;width:100%;color:var(--text-control)}
+.field input[list]::-webkit-calendar-picker-indicator{opacity:.7;cursor:pointer}
 .input:hover,.field input:hover,.field select:hover,.field textarea:hover{border-color:var(--gray-mid)}
 .field small{color:var(--text-secondary);font-size:12px}
 .factions{display:flex;gap:var(--space-8);align-items:center;justify-content:flex-end;grid-column:1/-1}

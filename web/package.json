@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "build:demo": "vite build --mode demo --outDir ../demo --emptyOutDir",
     "preview": "vite preview",
     "test": "vitest run"
   },

@@ -136,6 +136,18 @@ describe('órdenes de compra e inventario de insumos', () => {
     const res2 = await s.get('/api/resumen?mes=2026-10'); expect(res2.body.resumen.T.net).toBeCloseTo(res0.body.resumen.T.net, 6);
     const h = await s.get(`/api/ordenes-compra/${id}`); expect(h.body.history.map((x: any) => x.action)).toEqual(['crear', 'emitir', 'completar', 'anular']);
   });
+  it('opciones del formulario: valores usados y datos del proveedor; las anuladas no cuentan', async () => {
+    const s = await as('supervisor');
+    const c = await s.post('/api/ordenes-compra').send(oc([{ matType: 'Otro', description: 'Servicio opciones', qty: 1, unitPrice: 5 }],
+      { prefix: 'OPC', supplier: 'Proveedor Opciones', supplierNit: '123-4', bank: 'Banco Opciones', costCenter: 'CC OPCIONES' }));
+    expect(c.status).toBe(201);
+    const o1 = await (await as('consulta')).get('/api/ordenes-compra/opciones');
+    expect(o1.status).toBe(200); expect(o1.body.costCenter).toContain('CC OPCIONES'); expect(o1.body.serviceType).toContain('08-TRANSPORTE');
+    expect(o1.body.suppliers.find((p: any) => p.supplier === 'Proveedor Opciones')).toMatchObject({ supplierNit: '123-4', bank: 'Banco Opciones' });
+    expect((await s.post(`/api/ordenes-compra/${c.body.id}/anular`).send({ reason: 'prueba de opciones' })).status).toBe(200);
+    const o2 = await s.get('/api/ordenes-compra/opciones');
+    expect(o2.body.costCenter).not.toContain('CC OPCIONES'); expect(o2.body.suppliers.some((p: any) => p.supplier === 'Proveedor Opciones')).toBe(false);
+  });
   it('editar una orden emitida exige motivo y respeta la versión; el número es consecutivo por prefijo', async () => {
     const s = await as('supervisor'), c = await s.post('/api/ordenes-compra').send({ ...oc([{ matType: 'Otro', description: 'Servicio X', qty: 2, unitPrice: 10 }]), emitir: true });
     expect(c.status).toBe(201); expect(c.body.number).toBe('FLEE-2'); expect(c.body.status).toBe('emitida');

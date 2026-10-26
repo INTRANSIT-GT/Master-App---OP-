@@ -8,6 +8,8 @@ Puede usarse **solo** (con su propio login) o como **módulo dentro del servidor
 
 > **Estado: prototipo funcional para validación.** Los datos precargados con `npm run seed` son de **demostración** (etiquetados `demo`, con banner visible). No usar esas cifras para decisiones.
 
+**▶ [Ver la demostración en línea](https://intransit-gt.github.io/Master-App---OP-/demo/)**: la web completa con datos de demostración y órdenes de compra ficticias, en modo solo lectura (entra con cualquier correo y clave; los cambios no se guardan).
+
 ## Qué incluye
 
 | Módulo | Estado |
@@ -42,7 +44,7 @@ Requisitos: **Node 22**, **PostgreSQL 16**.
 
 ```bash
 # 1) Base de datos local (rol omnia / clave de desarrollo omnia_dev; solo para tu máquina)
-scripts/reset-db.sh omnia            # Linux/macOS (en Windows ver docs/06)
+scripts/reset-db.sh omnia            # Linux/macOS; en Windows: python scripts/reset-db-windows.py omnia
 # 2) API
 cd server && npm ci && npm run seed  # catálogos + 5 usuarios demo + datos demo
 npm run dev                           # http://localhost:3001
@@ -56,7 +58,7 @@ Usuarios demo (clave `Omnia2026!demo`): `admin@`, `supervisor@`, `operador@`, `c
 
 ```bash
 scripts/reset-db.sh omnia_test
-cd server && npm test                 # 84: motor vs. valores dorados del HTML, API, permisos, duplicados, cierres, módulo y sesión compartida
+cd server && npm test                 # 85: motor vs. valores dorados del HTML, API, permisos, duplicados, cierres, módulo y sesión compartida
 cd web && npm test                    # 10
 # Navegador (con el servidor sembrado sirviendo la web compilada: `cd web && npm run build`, WEB_DIST=../web/dist)
 cd e2e && npm i && node smoke.mjs
@@ -78,6 +80,7 @@ La asignación de módulos y roles viene de Supabase (`app_metadata.modulos`). P
 
 - **Subir el código a GitHub**: guarda el código fuente y su historial. No pone la app en línea. Pasos en [`docs/06-github-y-despliegue.md`](docs/06-github-y-despliegue.md).
 - **Desplegar**: instalar y ejecutar la app en un servidor con PostgreSQL, HTTPS y respaldos (`docker compose up -d --build`, plantilla en `.env.example`). GitHub Pages **no sirve** para esta app porque necesita servidor y base de datos.
+- **Demostración estática** (`demo/`, publicada por GitHub Pages): la web compilada en modo `demo`, que responde la API con respuestas grabadas del servidor local y no guarda cambios. Para regenerarla, con el servidor sembrado y la web en desarrollo: `cd e2e && node demo-capturar.mjs` y luego `cd web && npm run build:demo`.
 
 ## Seguridad
 

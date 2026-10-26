@@ -91,11 +91,15 @@ function OCView({ id, onClose, onChanged, onEdit }: { id: string; onClose: () =>
 
 type Line = { code: string; matType: string; matRef: string; description: string; qty: string; unitPrice: string; area: string };
 const emptyLine = (): Line => ({ code: '', matType: 'Insumo', matRef: '', description: '', qty: '', unitPrice: '', area: '' });
+// campos con lista desplegable (valores ya usados en otras órdenes; se puede escribir uno nuevo) y datos que trae el proveedor
+const LISTS = ['costCenter', 'serviceType', 'paymentMethod', 'bank', 'accountType', 'requestedBy', 'deliverTo', 'deliveryPlace', 'preparedBy', 'preparedPosition', 'approvedBy', 'approvedPosition'];
+const SUPPLIER_DATA = ['supplierContact', 'supplierAddress', 'supplierNit', 'supplierPhone', 'creditDays', 'paymentMethod', 'bankAccount', 'bank', 'accountType'];
 const HEAD = ['costCenter', 'serviceType', 'supplier', 'supplierContact', 'supplierAddress', 'supplierNit', 'supplierPhone', 'creditDays', 'advancePct', 'advanceAmount', 'paymentMethod', 'bankAccount', 'bank', 'accountType', 'instructions', 'requestedBy', 'deliverTo', 'deliveryPlace', 'preparedBy', 'preparedPosition', 'approvedBy', 'approvedPosition', 'lot', 'checkNo', 'notes'] as const;
 
 function OCForm({ edit, onClose, onSaved }: { edit?: any; onClose: () => void; onSaved: () => void }) {
   const { meta, can, toast, confirmBox } = useApp();
   const { data: cat } = useLoad<any>(() => api.get('/catalogo'), []);
+  const { data: op } = useLoad<any>(() => api.get('/ordenes-compra/opciones'), []);
   const [h, setH] = useState<Record<string, any>>(() => ({ prefix: edit?.prefix ?? 'OC', poDate: edit?.poDate ?? meta?.today ?? '', paymentCondition: edit?.paymentCondition ?? 'CONTADO', currency: edit?.currency ?? 'GTQ', exchangeRate: edit?.exchangeRate ?? 1, clientId: edit?.clientId ?? '', preparedBy: edit?.preparedBy ?? meta?.user.name ?? '', ...Object.fromEntries(HEAD.map((k) => [k, edit?.[k] ?? (k === 'preparedBy' ? meta?.user.name ?? '' : '')])) }));
   const [lines, setLines] = useState<Line[]>(() => (edit?.lines?.length ? edit.lines.map((l: any) => ({ code: l.code ?? '', matType: l.matType, matRef: l.matRef ?? '', description: l.description, qty: String(l.qty), unitPrice: String(l.unitPrice), area: l.area ?? '' })) : [emptyLine()]));
   const [busy, setBusy] = useState(false), [key] = useState(newKey);
@@ -119,7 +123,9 @@ function OCForm({ edit, onClose, onSaved }: { edit?: any; onClose: () => void; o
       onSaved();
     } catch (e: any) { toast(e.message, true); } finally { setBusy(false); }
   };
-  const T = (k: string, label: string, w?: 2 | 3, type = 'text', extra: any = {}) => <div className={'field' + (w ? ' w' + w : '')}><label htmlFor={'oc-' + k}>{label}</label><input id={'oc-' + k} type={type} value={h[k] ?? ''} onChange={(e) => set(k, e.target.value)} {...extra} /></div>;
+  const T = (k: string, label: string, w?: 2 | 3, type = 'text', extra: any = {}) => <div className={'field' + (w ? ' w' + w : '')}><label htmlFor={'oc-' + k}>{label}</label><input id={'oc-' + k} type={type} value={h[k] ?? ''} onChange={(e) => set(k, e.target.value)} {...(LISTS.includes(k) ? { list: 'oc-dl-' + k, autoComplete: 'off' } : {})} {...extra} /></div>;
+  // elegir un proveedor conocido copia sus datos de la última orden
+  const setSupplier = (v: string) => { const p = (op?.suppliers ?? []).find((x: any) => x.supplier.toUpperCase() === v.trim().toUpperCase()); setH((x) => ({ ...x, supplier: v, ...(p ? Object.fromEntries(SUPPLIER_DATA.map((k) => [k, p[k] ?? ''])) : {}) })); };
   return (
     <Modal title={edit ? `Editar ${edit.number}` : 'Generar orden de compra'} onClose={onClose} wide>
       <p className="muted">Formato interno «Orden de compra y/o requerimiento de pago». El número de orden se asigna al guardar (prefijo + consecutivo).</p>
@@ -132,7 +138,7 @@ function OCForm({ edit, onClose, onSaved }: { edit?: any; onClose: () => void; o
         <div className="field"><label htmlFor="oc-cl">Cliente (opcional)</label><select id="oc-cl" value={h.clientId} onChange={(e) => set('clientId', e.target.value)}><option value="">—</option>{(cat?.clients ?? []).map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
       </div></fieldset>
       <fieldset className="fieldset"><legend>Datos del proveedor</legend><div className="form">
-        {T('supplier', 'Proveedor *', 2, 'text', { required: true })}{T('supplierContact', 'Contacto')}{T('supplierAddress', 'Dirección', 2)}{T('supplierNit', 'NIT')}{T('supplierPhone', 'Teléfono')}
+        {T('supplier', 'Proveedor *', 2, 'text', { required: true, list: 'oc-dl-supplier', autoComplete: 'off', onChange: (e: any) => setSupplier(e.target.value) })}{T('supplierContact', 'Contacto')}{T('supplierAddress', 'Dirección', 2)}{T('supplierNit', 'NIT')}{T('supplierPhone', 'Teléfono')}
         {h.paymentCondition === 'CREDITO' && T('creditDays', 'Días de crédito')}{T('advancePct', '% de anticipo', undefined, 'number', { step: 'any', min: 0, max: 100 })}{T('advanceAmount', 'Monto anticipo', undefined, 'number', { step: 'any', min: 0 })}
         {T('paymentMethod', 'Forma de pago')}{T('bankAccount', 'Cuenta bancaria')}{T('bank', 'Banco')}{T('accountType', 'Tipo de cuenta')}{T('instructions', 'Instrucciones', 3)}
       </div></fieldset>
@@ -157,6 +163,8 @@ function OCForm({ edit, onClose, onSaved }: { edit?: any; onClose: () => void; o
         <p className="muted" style={{ marginTop: 6 }}>Los tipos Insumo / Etiqueta / Ribbon / Bolsa ingresan al inventario al completar la orden. «Directo» y «Otro» restan su monto del área en el Resumen. ¿Falta un insumo? Créalo en Inventario → Insumos.</p>
       </fieldset>
       <fieldset className="fieldset"><legend>Firmas y control</legend><div className="form">{T('preparedBy', 'Realizado por')}{T('preparedPosition', 'Cargo')}{T('approvedBy', 'Autoriza (nombre)')}{T('approvedPosition', 'Puesto')}{T('lot', 'Lote')}{T('checkNo', 'Cheque')}{T('notes', 'Notas internas', 3)}</div></fieldset>
+      {LISTS.map((k) => <datalist key={k} id={'oc-dl-' + k}>{(op?.[k] ?? []).map((v: string) => <option key={v} value={v} />)}</datalist>)}
+      <datalist id="oc-dl-supplier">{(op?.suppliers ?? []).map((p: any) => <option key={p.supplier} value={p.supplier}>{p.supplierNit ? 'NIT ' + p.supplierNit : ''}</option>)}</datalist>
       <div className="mact">
         <button className="btn" onClick={onClose}>Cancelar</button>
         <button className="btn btn-blue" disabled={busy} onClick={() => save(false)}>{edit ? 'Guardar cambios' : 'Guardar como borrador'}</button>

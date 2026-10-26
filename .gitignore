@@ -1,0 +1,33 @@
+# dependencias y compilados
+node_modules/
+dist/
+build/
+coverage/
+*.tsbuildinfo
+# secretos y configuración local
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+# datos locales, respaldos y registros
+*.dump
+*.sql.gz
+*.log
+npm-debug.log*
+backups/
+# pruebas y capturas
+e2e/shots/
+e2e/shots-integrado/
+shots/
+# configuración propia de cada servidor
+deploy/portal/config.js
+# sistema / editores
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Claude: configuración personal y recibos privados (nunca al repositorio)
+.claude/settings.local.json
+.claude/privado/

@@ -5,13 +5,14 @@ import { parse } from '../http.js';
 import { idempotent } from '../idempotency.js';
 import { can } from '../permissions.js';
 import { excelPO, pdfPO } from '../services/exporter.js';
-import { completePO, createPO, emitPO, getPO, listPO, purchaseHistory, updatePO, voidPO } from '../services/purchases.js';
+import { completePO, createPO, emitPO, getPO, listPO, purchaseHistory, purchaseOptions, updatePO, voidPO } from '../services/purchases.js';
 
 export const purchasesRouter = Router();
 const f = z.object({ from: z.string().optional(), to: z.string().optional(), status: z.string().optional(), q: z.string().optional(), supplier: z.string().optional(), limit: z.coerce.number().optional() });
 
 purchasesRouter.get('/ordenes-compra', need('ver'), async (req, res) => res.json(await listPO(parse(f, req.query))));
 purchasesRouter.get('/ordenes-compra/historial', need('ver'), async (req, res) => res.json(await purchaseHistory(parse(f, req.query))));
+purchasesRouter.get('/ordenes-compra/opciones', need('ver'), async (_req, res) => res.json(await purchaseOptions()));
 purchasesRouter.get('/ordenes-compra/:id', need('ver'), async (req, res) => res.json(await getPO(req.params.id as string)));
 purchasesRouter.post('/ordenes-compra', need('compras.crear'), idempotent, async (req, res) => {
   const { emitir, ...body } = req.body ?? {};
