@@ -25,17 +25,21 @@ TIPO: SOLICITUD (lo que pidió el operador), HECHO, VERIFICADO (comando, resulta
 
 ## Cerrar (`/intransit-bitacora cerrar` o al despedirse)
 
-1. Anotar en la privada las líneas que falten y un `CIERRE`.
+Todo cierre (wrap-up) va **etiquetado con el trato del operador y la fecha**: el `trato` de `.claude/privado/operador.json` (p. ej. «Ing. Carmen», «NORA») y `AAAA-MM-DD`. Así se sabe de quién es cada cierre aunque varios operadores trabajen el mismo repositorio. Los pendientes nunca se omiten.
+
+1. Anotar en la privada las líneas que falten y un `- HH:MM · CIERRE · <trato> · AAAA-MM-DD · resumen`.
 2. Crear o completar `docs/ai/diario/<operador>/AAAA-MM-DD.md` con este formato, de 15 líneas como máximo:
 
    ```
-   # AAAA-MM-DD · <operador> · <app>
+   # <trato> · AAAA-MM-DD · <app>
    Revisión: <sha corto>
    ## Hecho
    ## Verificado
    ## Pendiente
    ## Decisiones aprobadas
    ```
+
+   Si ese día ya hubo un cierre, se agrega una sección `## Cierre HH:MM · <trato> · AAAA-MM-DD` en lugar de repetir el título.
 
 3. El resumen público es para un repositorio público: sin nombres de clientes, filas de Excel, montos reales, rutas locales ni secretos. Las fuentes privadas se citan por identificador de `docs/ai/FUENTES.md`. Separar FUENTE, INTERPRETACIÓN, PROPUESTA y DECISIÓN APROBADA.
 4. Si el trabajo cambia el estado del proyecto, actualizar también ESTADO y TRASPASO (skill `intransit-trazabilidad`).
