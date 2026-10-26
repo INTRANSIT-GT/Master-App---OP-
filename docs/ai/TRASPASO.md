@@ -128,3 +128,29 @@ Comando: `node scripts/intransit-startup.cjs` con JSON sintético por stdin, en 
 - **Transportes:** se borraron los restos de plantillas con nombres viejos (`eos/plantillas/comun/.claude`, `CLAUDE.md` de plantillas) que duplicaban skills.
 
 **Pruebas:** demo servida en `/Master-App---OP-/demo/` (servidor estático local, misma ruta que Pages) y recorrida en Chrome: 8 pestañas con datos, formulario de OC con 7 centros de costo, autollenado de proveedor, aviso al guardar, 0 errores y 0 respuestas ≥ 400. `tsc` de web y servidor sin errores; servidor 85/85; web 10/10.
+
+## 2026-10-25 · OP al estilo Transportes: GitHub Pages + Supabase
+
+**Solicitud (en la sesión de Ing. Carmen):** «reescribir OP al estilo Transportes», usar el mismo Supabase de prueba («todo es una prueba») y corregir antes los dos hallazgos de cálculo. «Ejecuta de una vez, no hay ambiente de producción».
+
+- **INTERPRETACIÓN:** el objetivo es que OP funcione sin servidor propio, como Transportes. No se reescribió la lógica en el navegador ni en SQL: el mismo servidor Express corre como Edge Function de Supabase. Así se evita duplicar ~2 700 líneas y las pruebas existentes siguen cubriendo lo que corre en línea (regla 9). Rehacerlo todo como funciones SQL y RLS queda como alternativa no elegida.
+- **Hallazgos (hecho):** `records.ts`: si se editan unidades, cajas o u/caja de Walmart sin enviar cajas de cobro, estas se recalculan (R6). `periods.ts` y `reports.ts`: el cierre guarda una foto por semana y la consulta semanal de un periodo cerrado la usa. Los cierres hechos antes de esta corrección no tienen esa foto: hay que reabrirlos y volver a cerrarlos.
+- **Servidor (hecho):** `DB_SCHEMA` (search_path), `DB_POOL_MAX`, `SUPABASE_DB_URL`, `SSO_USUARIOS=modulo` (rol leído de `auth.users`; el administrador de OP da acceso a cuentas de Supabase y crea cuentas nuevas con la API de administración; no cambia contraseñas ajenas): `config.ts`, `db.ts`, `auth.ts`, `sso.ts`, `routes/users.ts`, `services/directory.ts`. Entrada `server/src/edge.ts` (configuración propia; no usa los secretos del proyecto, que comparte con las funciones de Transportes).
+- **Empaquetado y despliegue:** `scripts/supabase-funcion.mjs` (esbuild; fuentes de pdfkit fijas, prefijo `node:`, globales de Node para Deno) → `supabase/functions/operaciones/` (`app.mjs` se genera, ignorado por Git). `scripts/supabase-base.mjs esquema|datos|rehacer`.
+- **Ejecutado en Supabase `bocgzjupocnvjehklxhs`:** esquema `operaciones` (migraciones 001-002, `btree_gist` en `extensions`, sin acceso de anon/authenticated); datos copiados de la base local `omnia` recién sembrada (890 filas: demo + 10 OC ficticias `MOCK-*`); Edge Function `operaciones` (sin verificación del gateway: la valida el servidor); 2 cuentas `op-prueba-admin@` y `op-prueba-operador@intransit.test` (contraseñas en `<repos>/.eos/local/op-supabase-prueba.json`). Transportes no se tocó. La prueba en vivo dejó un borrador de Cobán anulado (`PRUEBA-VIVO-*`).
+- **Web:** entrada propia con cuenta de Supabase (`ownLogin`; la sesión queda en `sb-<ref>-auth-token`, la misma clave que supabase-js, así que se comparte con Transportes en el mismo sitio); `apiUrl` a la función; Ajustes › Usuarios con «Dar acceso». Build `npm run build:supabase` → `app/`; `index.html` en la raíz lleva a `app/`; `demo/` sigue.
+- **Documentos:** `docs/09-supabase.md` (nuevo), README, `docs/ai/SEGURIDAD.md`, ESTADO. `AGENTS.md` no se tocó (lo administra EOS por plantilla).
+
+**Pruebas · Windows 11, Node 22.23.4, PostgreSQL 16.15, Chrome + playwright-core, Supabase CLI 2.122.0:**
+
+| Caso | Resultado |
+|---|---|
+| `server/test/hallazgos.test.ts` antes de corregir | FALLA como se esperaba: 85.26 en lugar de 170.53; la semana cerrada se movía 6 984.43 |
+| `cd server && npm test` | PASA 97/97 (85 anteriores + 4 de hallazgos + 8 de `sso-modulo.test.ts`) |
+| `cd web && npm test`, `tsc` server y web | PASA 10/10, sin errores |
+| Paquete de la función en Node contra la base local | PASA: salud, login, resumen, PDF del mes y de una OC, Excel |
+| Función en vivo, sesión real de Supabase (13 llamadas) | PASA: meta, resumen (costo Q46 107.70), dashboard, catálogo, opciones de compras, PDF, Excel, borrador del operador, anulación, permisos, 401 sin sesión |
+| API REST pública con `Accept-Profile: operaciones` | Rechazada (`PGRST106`: solo `public` y `graphql_public`) |
+| Build de Pages servido en local en `/Master-App---OP-/app/` + Chrome | PASA: entrar, clave mala, 8 pestañas, Usuarios, salir, operador sin Comercial; 0 errores de página |
+
+**No verificado:** la app ya publicada en `intransit-gt.github.io` (se verifica después del push); importar Excel a través de la función; uso simultáneo de varias personas; límites del plan gratuito de Supabase.

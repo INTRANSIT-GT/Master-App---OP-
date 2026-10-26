@@ -1,13 +1,14 @@
 export class ApiError extends Error {
   constructor(public status: number, public code: string, message: string, public details?: any) { super(message); }
 }
-import { apiBase, cfg } from './module';
-import { accessToken } from './sso';
+import { apiBase, cfg, ownLogin } from './module';
+import { accessToken, readSession } from './sso';
 
 let token: string | null = null;
 try { token = localStorage.getItem('omnia_token'); } catch { /* sin almacenamiento */ }
 export const setToken = (t: string | null) => { token = t; try { t ? localStorage.setItem('omnia_token', t) : localStorage.removeItem('omnia_token'); } catch { /* noop */ } };
-export const hasToken = () => cfg.authMode === 'sso' || !!token;   // en sso la sesión la aporta el portal
+// en sso la sesión la aporta el portal; con entrada propia, la sesión de Supabase guardada en este navegador
+export const hasToken = () => (ownLogin ? !!readSession() : cfg.authMode === 'sso' || !!token);
 
 // Indicador de sincronización: cuántas escrituras están en vuelo y si hay conexión.
 type SyncState = { pending: number; offline: boolean; lastSaved: number | null };
@@ -26,7 +27,7 @@ async function call<T>(method: string, path: string, body?: unknown, opts: { ide
   try {
     const headers: Record<string, string> = {};
     const t = cfg.authMode === 'sso' ? await accessToken() : token;
-    if (cfg.authMode === 'sso' && !t) { onUnauthorized(); throw new ApiError(401, 'NO_AUTENTICADO', 'Inicia sesión desde el portal.'); }
+    if (cfg.authMode === 'sso' && !t) { onUnauthorized(); throw new ApiError(401, 'NO_AUTENTICADO', ownLogin ? 'Tu sesión terminó. Entra de nuevo.' : 'Inicia sesión desde el portal.'); }
     if (t) headers.Authorization = 'Bearer ' + t;
     if (opts.idem) headers['Idempotency-Key'] = opts.idem;
     let payload: BodyInit | undefined;

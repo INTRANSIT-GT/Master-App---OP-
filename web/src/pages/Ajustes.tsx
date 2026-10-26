@@ -144,12 +144,14 @@ function Usuarios() {
   const { data, err, loading, reload } = useLoad<any[]>(() => api.get('/usuarios'), []);
   const ROLES = [['administrador', 'Administrador'], ['comercial', 'Comercial'], ['supervisor', 'Supervisor'], ['operador', 'Operador'], ['consulta', 'Consulta']];
   const patch = async (u: any, b: any) => { try { await api.patch('/usuarios/' + u.id, b); toast('Usuario actualizado.'); reload(); } catch (e: any) { toast(e.message, true); } };
-  const ext = meta?.authMode === 'sso';
+  // sso + modulo: Operaciones vive en Supabase y da acceso a cuentas de Supabase (las mismas de Transportes)
+  const dir = meta?.authMode === 'sso' && meta?.ssoUsers === 'modulo', ext = meta?.authMode === 'sso' && !dir;
   return (
     <>
       {ext && <div className="note">Los usuarios, los módulos asignados y los roles se gestionan en la app principal (Supabase). Aquí solo puedes suspender o reactivar el acceso a Operaciones.</div>}
-      {!ext && <Card title="Nuevo usuario" sub="Contraseña de al menos 10 caracteres con letras y números"><RecordForm submitLabel="Crear usuario" initial={{ role: 'operador' }} fields={[{ k: 'email', label: 'Correo', type: 'text', required: true }, { k: 'name', label: 'Nombre', type: 'text', required: true }, { k: 'role', label: 'Rol', type: 'select', required: true, options: ROLES as [string, string][] }, { k: 'password', label: 'Contraseña inicial', type: 'text', required: true }]}
-        onSubmit={async (v) => { try { await api.post('/usuarios', v); toast('Usuario creado.'); reload(); } catch (e: any) { toast(e.message, true); } }} /></Card>}
+      {dir && <div className="note">Las cuentas son de Supabase, las mismas de Transportes. Si el correo ya tiene cuenta, se le da acceso a Operaciones y su contraseña no cambia; si no tiene, se crea con la contraseña inicial que escribas.</div>}
+      {!ext && <Card title={dir ? 'Dar acceso a Operaciones' : 'Nuevo usuario'} sub="Contraseña de al menos 10 caracteres con letras y números"><RecordForm submitLabel={dir ? 'Dar acceso' : 'Crear usuario'} initial={{ role: 'operador' }} fields={[{ k: 'email', label: 'Correo', type: 'text', required: true }, { k: 'name', label: 'Nombre', type: 'text', required: true }, { k: 'role', label: 'Rol', type: 'select', required: true, options: ROLES as [string, string][] }, { k: 'password', label: dir ? 'Contraseña inicial (solo si la cuenta es nueva)' : 'Contraseña inicial', type: 'text', required: !dir }]}
+        onSubmit={async (v) => { try { const r = await api.post('/usuarios', v); toast(r.existente ? 'La cuenta ya existía: ahora tiene acceso a Operaciones.' : 'Usuario creado.'); reload(); } catch (e: any) { toast(e.message, true); } }} /></Card>}
       <Card title="Usuarios"><Loading err={err} loading={loading && !data} />
         <table className="tbl"><thead><tr><th>Nombre</th><th>Correo</th><th>Rol</th><th>Activo</th></tr></thead><tbody>{(data ?? []).map((u) => <tr key={u.id}><td>{u.name}</td><td>{u.email}</td>
           <td><select aria-label={'Rol de ' + u.name} value={u.role} disabled={ext || u.id === meta?.user.id} onChange={(e) => patch(u, { role: e.target.value })}>{ROLES.map(([v, n]) => <option key={v} value={v}>{n}</option>)}</select></td>

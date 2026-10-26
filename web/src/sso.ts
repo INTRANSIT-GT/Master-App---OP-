@@ -4,7 +4,7 @@ import { cfg } from './module';
 interface Session { access_token: string; refresh_token: string; expires_at?: number; [k: string]: unknown }
 
 export const decodeClaims = (jwt: string): any => { try { return JSON.parse(atob(jwt.split('.')[1]!.replace(/-/g, '+').replace(/_/g, '/'))); } catch { return null; } };
-const readSession = (): Session | null => { try { const raw = localStorage.getItem(cfg.storageKey ?? ''); const s = raw ? JSON.parse(raw) : null; return s?.access_token ? s : null; } catch { return null; } };
+export const readSession = (): Session | null => { try { const raw = localStorage.getItem(cfg.storageKey ?? ''); const s = raw ? JSON.parse(raw) : null; return s?.access_token ? s : null; } catch { return null; } };
 const writeSession = (s: Session) => { try { localStorage.setItem(cfg.storageKey ?? '', JSON.stringify(s)); } catch { /* sin almacenamiento */ } };
 export const clearSession = () => { try { localStorage.removeItem(cfg.storageKey ?? ''); } catch { /* noop */ } };
 
@@ -27,6 +27,19 @@ export async function accessToken(): Promise<string | null> {
   return (refreshing ??= refresh(s).finally(() => { refreshing = null; }));
 }
 
+/**
+ * Entrada propia (ownLogin) con correo y contraseña de Supabase. La sesión se guarda donde la guarda supabase-js,
+ * así que en el mismo sitio (intransit-gt.github.io) Operaciones y Transportes comparten la sesión.
+ */
+export async function signIn(email: string, password: string) {
+  let r: Response;
+  try { r = await fetch(`${cfg.supabaseUrl}/auth/v1/token?grant_type=password`, { method: 'POST', headers: { apikey: cfg.supabaseKey ?? '', 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }) }); }
+  catch { throw new Error('No hay conexión con Supabase. Revisa tu internet.'); }
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok || !j.access_token) throw new Error(r.status === 400 ? 'Correo o contraseña incorrectos.' : (j.msg ?? j.error_description ?? 'No se pudo iniciar sesión.'));
+  writeSession({ access_token: j.access_token, refresh_token: j.refresh_token, expires_in: j.expires_in, expires_at: j.expires_at ?? Math.floor(Date.now() / 1000) + (j.expires_in ?? 3600), token_type: j.token_type ?? 'bearer', user: j.user });
+}
+
 /** Vuelve al portal. Si ya se volvió hace instantes (la sesión no sirvió), devuelve false para no entrar en un ciclo. */
 export function goPortal(opts: { module?: boolean } = {}): boolean {
   try { const last = Number(sessionStorage.getItem('ops_portal_redirect') ?? 0); if (Date.now() - last < 15_000) return false; sessionStorage.setItem('ops_portal_redirect', String(Date.now())); } catch { /* noop */ }
@@ -38,5 +51,5 @@ export async function signOut() {
   if (t) fetch(`${cfg.supabaseUrl}/auth/v1/logout`, { method: 'POST', headers: { apikey: cfg.supabaseKey ?? '', Authorization: 'Bearer ' + t } }).catch(() => {});
   clearSession();
   try { sessionStorage.removeItem('ops_portal_redirect'); } catch { /* noop */ }
-  location.replace(cfg.portalUrl);
+  if (cfg.ssoUsers === 'modulo') location.reload(); else location.replace(cfg.portalUrl);   // entrada propia: vuelve a la pantalla de entrar
 }

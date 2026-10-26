@@ -212,6 +212,8 @@ export async function updateRecord(key: EntKey, user: AuthUser, id: string, body
     if (unknown.length) throw bad(`Campos no editables: ${unknown.join(', ')}`);
     const parsedPatch: any = parse(e.schema.pick(Object.fromEntries(keys.map((k) => [k, true])) as any), patch);
     const full: any = { ...curApi, ...parsedPatch };
+    // Walmart: las cajas de cobro guardadas se derivaron de las cantidades; si estas cambian y no se envía otro cobro, se recalculan (R6)
+    if (full.kind === 'wm' && !('billableBoxes' in parsedPatch) && ['units', 'boxes', 'unitsPerBox'].some((k) => k in parsedPatch)) delete full.billableBoxes;
     const s = await getSettings(c);
     await assertDateOk(full.date, s);
     await e.check?.(full, c, s);

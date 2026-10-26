@@ -31,3 +31,8 @@ Thumbs.db
 # Claude: configuración personal y recibos privados (nunca al repositorio)
 .claude/settings.local.json
 .claude/privado/
+
+# Supabase: la función empaquetada se genera (node scripts/supabase-funcion.mjs) y la CLI deja temporales
+supabase/functions/operaciones/app.mjs
+supabase/.temp/
+supabase/.branches/

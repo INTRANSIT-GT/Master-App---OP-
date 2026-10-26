@@ -40,12 +40,21 @@ async function syncSsoUser(u: SsoUser): Promise<AuthUser> {
   synced.set(u.sub, { key, id, until: Date.now() + 60_000 });
   return { id, email: u.email, name: u.name, role: u.role };
 }
-export const resetSsoCache = () => synced.clear();
+/** SSO_USUARIOS=modulo: la asignación se lee de auth.users (misma base), así un cambio de rol aplica en segundos. */
+const metas = new Map<string, { meta: unknown; until: number }>();
+async function appMetaFromDb(sub: string) {
+  const hit = metas.get(sub);
+  if (hit && hit.until > Date.now()) return hit.meta;
+  const meta = (await pool.query('SELECT raw_app_meta_data AS m FROM auth.users WHERE id = $1', [sub])).rows[0]?.m ?? null;
+  metas.set(sub, { meta, until: Date.now() + 30_000 });
+  return meta;
+}
+export const resetSsoCache = (sub?: string) => { if (sub) { synced.delete(sub); metas.delete(sub); } else { synced.clear(); metas.clear(); } };
 
 async function authenticateSso(req: Request) {
   const h = req.headers.authorization;
-  if (!h?.startsWith('Bearer ')) throw new HttpError(401, 'NO_AUTENTICADO', 'Inicia sesión desde el portal para continuar.');
-  req.user = await syncSsoUser(await verifySupabaseToken(h.slice(7)));
+  if (!h?.startsWith('Bearer ')) throw new HttpError(401, 'NO_AUTENTICADO', 'Inicia sesión para continuar.');
+  req.user = await syncSsoUser(await verifySupabaseToken(h.slice(7), config.ssoUsers === 'modulo' ? appMetaFromDb : undefined));
 }
 
 export async function authenticate(req: Request, _res: Response, next: NextFunction) {

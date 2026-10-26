@@ -32,6 +32,8 @@ export async function monthReport(k: number, week?: string) {
   const eng = await getEngine(), row = await periodRow(k);
   const p = week ? weekPeriod(k, period(k, eng.d.mw).ws, week) : period(k, eng.d.mw);
   if (!week && row?.status === 'cerrado' && row.snapshot) return { ...row.snapshot, frozen: true, closedAt: row.closed_at };
+  const wk = week && row?.status === 'cerrado' ? row.snapshot?.weeks?.[week] : null;   // semana de un periodo cerrado: cifras del cierre
+  if (wk) return { month: monthStr(k), week, status: 'cerrado', frozen: true, closedAt: row.closed_at, ...wk, stock: eng.stock(dn(tzToday())!) };
   const results = eng.results(p), resumen = eng.resumen(p, results);
   return { month: monthStr(k), week: week ?? null, status: row?.status ?? 'abierto', frozen: row?.status === 'cerrado' && !!week, results, resumen, inventory: invOut(eng, p), stock: eng.stock(dn(tzToday())!) };
 }

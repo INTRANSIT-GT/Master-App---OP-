@@ -4,7 +4,7 @@ import { MES, dn, iso, monthKey, period, weeksFor, wk } from '../engine/calendar
 import { HttpError, bad, conflict } from '../http.js';
 import { audit } from './audit.js';
 import { getEngine } from './engineCache.js';
-import { invOut, monthStr, periodRow } from './reports.js';
+import { invOut, monthStr, periodRow, weekPeriod } from './reports.js';
 import { getSettings } from './store.js';
 import { tzToday } from './records.js';
 
@@ -61,7 +61,10 @@ export async function closePeriod(user: AuthUser, k: number, opts: { acknowledge
     if (cur?.status === 'cerrado') throw conflict('PERIODO_CERRADO', 'El periodo ya está cerrado.');
     const over = await c.query(`SELECT month_key FROM periods WHERE month_key <> $1 AND status='cerrado' AND daterange(start_date, end_date, '[]') && daterange($2::date, $3::date, '[]')`, [k, iso(p.s), iso(p.e)]);
     if (over.rowCount) throw conflict('TRASLAPE', 'El periodo se traslapa con otro ya cerrado.');
-    const snapshot = { month: monthStr(k), status: 'cerrado', results: pc.results, resumen: pc.resumen, inventory: pc.inventory, stock: null, frozenAt: new Date().toISOString() };
+    // cada semana también se congela: sin esto, un cambio de precio de material movería el filtro semanal de un periodo cerrado
+    const weeks: Record<string, unknown> = {};
+    for (const m of p.ws) { const wp = weekPeriod(k, p.ws, iso(m)), wr = eng.results(wp); weeks[iso(m)] = { results: wr, resumen: eng.resumen(wp, wr), inventory: invOut(eng, wp) }; }
+    const snapshot = { month: monthStr(k), status: 'cerrado', results: pc.results, resumen: pc.resumen, inventory: pc.inventory, weeks, stock: null, frozenAt: new Date().toISOString() };
     const r = await c.query(`INSERT INTO periods (month_key, year, month, week_from, week_to, start_date, end_date, status, closed_by, closed_at, close_notes, snapshot, warnings)
        VALUES ($1,$2,$3,$4,$5,$6,$7,'cerrado',$8,now(),$9,$10,$11)
        ON CONFLICT (month_key) DO UPDATE SET status='cerrado', closed_by=$8, closed_at=now(), close_notes=$9, snapshot=$10, warnings=$11, start_date=$6, end_date=$7 RETURNING *`,

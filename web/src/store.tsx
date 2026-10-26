@@ -1,9 +1,9 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { api, ApiError, setToken, setUnauthorizedHandler, syncStore } from './api';
-import { asset, cfg } from './module';
+import { asset, cfg, ownLogin } from './module';
 import { signOut } from './sso';
 
-export interface Meta { user: { id: string; email: string; name: string; role: string; permissions: string[] }; demo: boolean; inicio: string; wmDiv: number; defaultMonth: string; today: string; areas: [string, string][]; summaryNames: Record<string, string>; lines: any[]; inventoryBaseDate: string | null; sede: string; authMode: 'local' | 'sso'; portalUrl: string; module: { id: string; name: string; basePath: string } }
+export interface Meta { user: { id: string; email: string; name: string; role: string; permissions: string[] }; demo: boolean; inicio: string; wmDiv: number; defaultMonth: string; today: string; areas: [string, string][]; summaryNames: Record<string, string>; lines: any[]; inventoryBaseDate: string | null; sede: string; authMode: 'local' | 'sso'; ssoUsers?: 'portal' | 'modulo'; portalUrl: string; module: { id: string; name: string; basePath: string } }
 interface Ctx {
   meta: Meta | null; can: (p: string) => boolean; month: string; setMonth: (m: string) => void; week: string; setWeek: (w: string) => void; refreshKey: number; refresh: () => void;
   toast: (msg: string, err?: boolean) => void; logout: () => void; reloadMeta: () => Promise<void>;
@@ -15,7 +15,7 @@ export const useSync = () => useSyncExternalStore(syncStore.subscribe, syncStore
 
 const DENIED = ['MODULO_NO_ASIGNADO', 'ROL_INVALIDO', 'USUARIO_INACTIVO'];
 function Denied({ title, message }: { title: string; message: string }) {
-  return <div className="login-wrap"><div className="login"><img src={asset('logo.png')} alt="In Transit" style={{ height: 44, marginBottom: 16 }} /><h1>{title}</h1><p className="muted" style={{ margin: '8px 0 16px' }}>{message}</p><a className="btn btn-primary" href={cfg.portalUrl}>Volver al portal</a></div></div>;
+  return <div className="login-wrap"><div className="login"><img src={asset('logo.png')} alt="In Transit" style={{ height: 44, marginBottom: 16 }} /><h1>{title}</h1><p className="muted" style={{ margin: '8px 0 16px' }}>{message}</p>{ownLogin ? <button className="btn btn-primary" onClick={() => void signOut()}>Entrar con otra cuenta</button> : <a className="btn btn-primary" href={cfg.portalUrl}>Volver al portal</a>}</div></div>;
 }
 
 export function AppProvider({ children, onLogout }: { children: ReactNode; onLogout: () => boolean | void }) {

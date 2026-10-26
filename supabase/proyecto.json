@@ -1,0 +1,6 @@
+{
+  "ref": "bocgzjupocnvjehklxhs",
+  "url": "https://bocgzjupocnvjehklxhs.supabase.co",
+  "publishableKey": "sb_publishable_frMveXdBVoncqk_kOZZmBw_Opjn0amp",
+  "nota": "Proyecto de Supabase de PRUEBA (declarado así por Ing. Carmen). Lo comparten Transportes (esquemas master y public) y Operaciones (esquema operaciones). La clave publishable es pública por diseño (equivale a la clave anon que Transportes ya publica en su config.js); la de servicio nunca va aquí."
+}

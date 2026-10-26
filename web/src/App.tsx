@@ -2,8 +2,8 @@ import { useCallback, useEffect, useState } from 'react';
 import { api, hasToken, setToken } from './api';
 import { Tabs } from './components';
 import { fmtDT } from './format';
-import { asset, cfg } from './module';
-import { goPortal } from './sso';
+import { asset, cfg, ownLogin } from './module';
+import { clearSession, goPortal } from './sso';
 import { AppProvider, useApp, useSync } from './store';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
@@ -34,7 +34,7 @@ function Shell({ onLogout }: { onLogout: () => boolean | void }) {
         <div className="brand"><img className="logo" src={asset('logo.png')} alt="Logotipo" /><div><h1>In Transit Operaciones</h1><p>Producción, compras, inventario y cobro · Sede {meta.sede}</p></div></div>
         <div className="actions">
           <span className={'sync ' + st} role="status" aria-live="polite"><i />{sync.offline ? 'Sin conexión: no se guardó' : sync.pending ? 'Guardando…' : sync.lastSaved ? 'Guardado ' + fmtDT(new Date(sync.lastSaved).toISOString()) : 'Conectado'}</span>
-          {cfg.authMode === 'sso' && <a className="btn btn-dark btn-sm" href={cfg.portalUrl + (cfg.portalUrl.includes('?') ? '&' : '?') + 'elegir=1'}>Módulos</a>}
+          {cfg.authMode === 'sso' && !ownLogin && <a className="btn btn-dark btn-sm" href={cfg.portalUrl + (cfg.portalUrl.includes('?') ? '&' : '?') + 'elegir=1'}>Módulos</a>}
           {can('exportar') && <><button className="btn btn-dark btn-sm" onClick={() => exp('excel')}>Excel</button><button className="btn btn-dark btn-sm" onClick={() => exp('pdf')}>PDF</button></>}
           <div className="userbox"><b>{meta.user.name}</b><br />{meta.user.role}</div>
           <button className="btn btn-dark btn-sm" onClick={logout}>Salir</button>
@@ -58,8 +58,9 @@ function Shell({ onLogout }: { onLogout: () => boolean | void }) {
 
 export default function App() {
   const [logged, setLogged] = useState(hasToken());
-  // Con sesión compartida (sso) no hay login propio: se vuelve al portal; false = ya se intentó hace instantes y no sirvió.
-  const out = useCallback(() => { if (cfg.authMode === 'sso') return goPortal({ module: true }); setToken(null); setLogged(false); }, []);
+  // Con sesión compartida (sso) y portal, no hay login propio: se vuelve al portal; false = ya se intentó hace instantes y no sirvió.
+  // Con entrada propia (ownLogin) se borra la sesión de Supabase y se muestra la pantalla de entrar.
+  const out = useCallback(() => { if (cfg.authMode === 'sso' && !ownLogin) return goPortal({ module: true }); if (ownLogin) clearSession(); setToken(null); setLogged(false); }, []);
   if (!logged) return <Login onLogin={() => setLogged(true)} />;
   return <AppProvider onLogout={out}><Shell onLogout={out} /></AppProvider>;
 }

@@ -32,7 +32,7 @@ reportsRouter.get('/meta', need('ver'), async (req, res) => {
     user: { ...req.user, permissions: ROLE_PERMS[req.user!.role] }, demo: s.demo === true, sede: s.sede ?? 'Omnia', inicio: s.inicio, wmDiv: s.wmDiv,
     defaultMonth: monthStr(await defaultMonth()), today: tzToday(), areas: AREAS, summaryNames: RES_NAME,
     lines: eng.d.lines, meses: MES, inventoryBaseDate: eng.d.base.date,
-    module: { id: MODULE_ID, name: MODULE_NAME, basePath: config.basePath }, authMode: config.authMode, portalUrl: config.portalUrl,
+    module: { id: MODULE_ID, name: MODULE_NAME, basePath: config.basePath }, authMode: config.authMode, ssoUsers: config.ssoUsers, portalUrl: config.portalUrl,
   });
 });
 reportsRouter.get('/resultados', need('ver'), async (req, res) => { const r: any = await monthReport(mes(req)); res.json({ month: r.month, status: r.status, frozen: r.frozen, results: r.results }); });

@@ -29,8 +29,11 @@ const verifyKey = () => {
   return (jwks ??= createRemoteJWKSet(new URL(`${config.supabaseUrl}/auth/v1/.well-known/jwks.json`)));  // claves asimétricas
 };
 
-/** Valida firma, vigencia, emisor y audiencia del token de Supabase y devuelve usuario y rol del módulo. */
-export async function verifySupabaseToken(token: string): Promise<SsoUser> {
+/**
+ * Valida firma, vigencia, emisor y audiencia del token de Supabase y devuelve usuario y rol del módulo.
+ * appMetaOf: lee la asignación vigente (auth.users) en lugar de la que trae el token, que puede tener hasta una hora.
+ */
+export async function verifySupabaseToken(token: string, appMetaOf?: (sub: string) => Promise<unknown>): Promise<SsoUser> {
   let p: JWTPayload & { email?: string; app_metadata?: unknown; user_metadata?: { full_name?: string; name?: string } };
   try {
     const opts = { issuer: `${config.supabaseUrl}/auth/v1`, audience: 'authenticated' };
@@ -38,7 +41,7 @@ export async function verifySupabaseToken(token: string): Promise<SsoUser> {
     p = (k instanceof Uint8Array ? await jwtVerify(token, k, opts) : await jwtVerify(token, k, opts)).payload as typeof p;
   } catch { throw new HttpError(401, 'SESION_INVALIDA', 'Tu sesión expiró. Vuelve a entrar desde el portal.'); }
   if (!p.sub || !p.email) throw new HttpError(401, 'SESION_INVALIDA', 'La sesión no incluye un usuario válido.');
-  const a = moduleAccess(p.app_metadata);
+  const a = moduleAccess(appMetaOf ? await appMetaOf(p.sub) : p.app_metadata);
   if (!a.assigned) throw new HttpError(403, 'MODULO_NO_ASIGNADO', 'Tu usuario no tiene asignado el módulo Operaciones. Pide acceso a un administrador.');
   if (!a.role) throw new HttpError(403, 'ROL_INVALIDO', `El rol asignado en Operaciones no es válido. Roles permitidos: ${ROLES.join(', ')}.`);
   const name = p.user_metadata?.full_name ?? p.user_metadata?.name ?? p.email.split('@')[0]!;
