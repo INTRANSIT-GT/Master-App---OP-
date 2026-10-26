@@ -14,6 +14,8 @@
   /* espaciado, radios, sombra */
   --space-8:8px;--space-16:16px;--space-24:24px;--space-32:32px;--space-48:48px;
   --radius-sm:6px;--radius-md:8px;--shadow-card:0 2px 8px rgba(0,0,0,.08);
+  /* fondo del área de trabajo (el mismo gris azulado de Transportes) */
+  --app-bg:#F4F7FA;
 
   /* alias usados por los componentes existentes */
   --bg:var(--surface);--surface-2:var(--surface-tint);--ink:var(--text-primary);--ink-2:var(--text-control);--ink-3:var(--text-secondary);
@@ -29,18 +31,49 @@ button,input,select,textarea{font:inherit;color:inherit}
 h1,h2,h3{text-wrap:balance;margin:0;font-family:var(--font-display);color:var(--text-primary)}
 a{color:var(--single-blue)}
 
-/* encabezado: blanco, logo oficial y acciones secundarias */
-.appbar{background:var(--surface);border-bottom:1px solid var(--border)}
-.appbar-in{max-width:1500px;margin:0 auto;padding:var(--space-16) var(--space-24);display:flex;gap:var(--space-16);align-items:center;flex-wrap:wrap}
-.brand{display:flex;align-items:center;gap:var(--space-16);flex:1 1 320px;min-width:0}
-.logo{height:40px;max-width:150px;object-fit:contain}
-.brand h1{font-weight:700;font-size:20px;line-height:26px}
-.brand p{margin:0;font-size:13px;line-height:18px;color:var(--text-secondary)}
+/* armazón con el formato de Transportes (Master App, css/app.css): cabecera arriba, menú a la izquierda y
+   el contenido con su propio desplazamiento */
+.app{height:100vh;display:flex;flex-direction:column}
+@supports(height:100dvh){.app{height:100dvh}}
+.top{display:flex;align-items:center;gap:12px;padding:10px 20px;background:var(--surface);border-bottom:1px solid var(--border);flex:none}
+.brand{display:flex;align-items:center;gap:10px;min-width:0;font-family:var(--font-display);font-weight:700;font-size:17px;color:var(--text-primary)}
+.brand small{display:block;font-family:var(--font-body);font-weight:500;font-size:12px;line-height:1.2;color:var(--text-secondary)}
+.isotile{width:44px;height:36px;border-radius:var(--radius-md);background:#fff;border:1px solid var(--border);display:grid;place-items:center;padding:4px;flex:none}
+.isotile img{width:100%;height:auto;display:block}
+.spacer{flex:1}
 .actions{display:flex;gap:var(--space-8);align-items:center;flex-wrap:wrap}
 .sync{font-size:12px;color:var(--text-secondary);display:inline-flex;align-items:center;gap:6px}
 .sync i{width:8px;height:8px;border-radius:50%;background:var(--green);display:inline-block}
 .sync.saving i{background:var(--yellow)}.sync.off i{background:var(--red)}
-.userbox{font-size:12px;line-height:16px;color:var(--text-secondary);text-align:right}.userbox b{color:var(--text-primary);font-family:var(--font-display);font-weight:700}
+.userchip{display:flex;align-items:center;gap:10px;border:1px solid var(--border);border-radius:999px;padding:4px 12px 4px 4px;min-height:44px}
+.avatar{width:34px;height:34px;border-radius:50%;background:var(--surface-tint);color:var(--blue-range);display:grid;place-items:center;font-family:var(--font-display);font-weight:700;font-size:13px}
+.userchip .t{display:flex;flex-direction:column;line-height:1.15}
+.userchip .t b{font-size:13.5px;color:var(--text-primary);font-family:var(--font-display)}.userchip .t span{font-size:12px;color:var(--text-secondary)}
+.body{flex:1;min-height:0;display:flex;position:relative}
+.side{width:226px;flex:none;background:var(--surface);border-right:1px solid var(--border);padding:14px 10px;overflow:auto;display:flex;flex-direction:column;gap:2px}
+.side button{display:flex;align-items:center;gap:10px;width:100%;text-align:left;background:none;border:0;border-radius:10px;padding:11px 12px;color:var(--text-control);font-family:var(--font-display);font-weight:600;font-size:14px;min-height:44px;cursor:pointer}
+.side button:hover{background:var(--app-bg)}
+.side button[aria-current="page"]{background:var(--surface-tint);color:var(--blue-range);font-weight:700}
+.ic{flex:none;vertical-align:middle}
+.main{flex:1;min-width:0;overflow:auto;background:var(--app-bg)}
+.inner{max-width:1500px;margin:0 auto;padding:var(--space-24) 30px var(--space-48)}
+.navbtn,.mback{display:none}
+
+/* teléfono y pantallas angostas: el menú se vuelve un cajón que se abre con el botón de tres líneas */
+@media (max-width:899px){
+  .navbtn{display:inline-grid;place-items:center;width:44px;height:44px;flex:none;padding:0;border:1px solid var(--border);background:var(--surface);border-radius:10px;color:var(--text-primary);cursor:pointer}
+  .top{gap:8px;padding:8px 10px}
+  .brand-t{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .brand small,.sync,.userchip .t{display:none}
+  .actions{flex-wrap:nowrap}
+  .userchip{padding:4px;min-height:0;border:0}
+  .side{position:absolute;top:0;bottom:0;left:0;z-index:70;width:min(300px,84%);box-shadow:0 14px 40px rgba(8,18,30,.35);transform:translateX(-102%);transition:transform .2s ease}
+  .nav-open .side{transform:none}
+  .nav-open .mback{display:block;position:absolute;inset:0;z-index:60;background:rgba(8,18,30,.45)}
+  .inner{padding:var(--space-16) 12px var(--space-48)}
+}
+@media (max-width:899px) and (prefers-reduced-motion:reduce){.side{transition:none}}
+@media (max-width:480px){.brand-t{display:none}}
 
 /* botones: principal azul, secundario con borde azul; texto del botón en mayúsculas */
 .btn{display:inline-flex;align-items:center;justify-content:center;gap:var(--space-8);border:1px solid var(--blue-range);background:var(--surface);color:var(--blue-range);padding:8px 14px;border-radius:var(--radius-md);font-family:var(--font-display);font-weight:700;font-size:13px;letter-spacing:.02em;text-transform:uppercase;cursor:pointer;white-space:nowrap;min-height:38px}
@@ -54,13 +87,11 @@ a{color:var(--single-blue)}
 
 .demo-banner{background:var(--yellow);color:#000;font-family:var(--font-display);font-weight:700;text-align:center;font-size:12px;padding:6px var(--space-16)}
 
-/* navegación por módulos */
-.tabs-wrap{background:var(--surface);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:20}
+/* pestañas (las subpestañas de cada módulo usan .subtabs) */
 .tabs{max-width:1500px;margin:0 auto;padding:0 var(--space-24);display:flex;gap:var(--space-8);overflow-x:auto;scrollbar-width:none}
 .tab{border:0;background:none;padding:14px 12px 12px;font-family:var(--font-display);font-weight:600;font-size:14px;color:var(--text-control);cursor:pointer;border-bottom:2px solid transparent;white-space:nowrap}
 .tab:hover{color:var(--single-blue)}
 .tab[aria-selected="true"]{color:var(--blue-range);font-weight:700;border-bottom-color:var(--blue-range)}
-main{max-width:1500px;margin:0 auto;padding:var(--space-24) var(--space-24) var(--space-48)}
 
 .pbar{display:flex;gap:var(--space-8);align-items:center;flex-wrap:wrap;margin-bottom:var(--space-16)}
 .mon-sel{font-family:var(--font-display);font-size:20px;font-weight:700;color:var(--text-primary);text-transform:capitalize;padding:2px 10px;min-height:40px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface)}
@@ -179,8 +210,8 @@ table{border-collapse:collapse;width:100%}
 .cli-h{display:flex;justify-content:space-between;align-items:baseline;gap:var(--space-16);flex-wrap:wrap}
 .big-btn{font-size:14px;padding:10px 18px}
 
-@media (max-width:720px){main{padding:var(--space-16) 12px var(--space-48)}.appbar-in{padding:12px}.tabs{padding:0 var(--space-8)}.field.w2,.field.w3{grid-column:auto}.userbox{display:none}}
-@media print{.appbar,.tabs-wrap,.toast-host,.actions{display:none}.card,.kpi{box-shadow:none}}
+@media (max-width:720px){.tabs{padding:0 var(--space-8)}.field.w2,.field.w3{grid-column:auto}}
+@media print{.top,.side,.toast-host{display:none}.app{height:auto}.main{overflow:visible;background:none}.card,.kpi{box-shadow:none}}
 
 /* controles sueltos (búsqueda, filtros) con el mismo aspecto que los campos de formulario */
 main input:not([type=checkbox]):not([type=radio]):not([type=file]),main select,main textarea{border:1px solid var(--gray-light);border-radius:var(--radius-sm);padding:7px 10px;background:var(--surface);min-height:38px;color:var(--text-control)}

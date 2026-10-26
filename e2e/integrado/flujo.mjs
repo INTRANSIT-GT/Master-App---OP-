@@ -24,7 +24,7 @@ const has = async (page, t, ms = 8000) => page.getByText(t, { exact: false }).fi
   await login(page, 'marta@intransit.test', 'Clave-Marta-1');
   await page.waitForURL('**/operaciones/**'); check(await has(page, 'Horas hombre reportadas'), 'marta (solo Operaciones) entra directo al módulo');
   check(await has(page, 'operador'), 'se muestra su rol operador'); await page.screenshot({ path: OUT + '/01-marta-operaciones.png' });
-  check((await page.getByRole('tab', { name: 'Ajustes', exact: true }).count()) === 1, 'el módulo carga con su menú');
+  check((await page.locator('nav.side').getByRole('button', { name: 'Ajustes', exact: true }).count()) === 1, 'el módulo carga con su menú');
   // 2) Renovación de la sesión: token a punto de vencer → se renueva sin pasar por el portal
   const before = (await (await page.request.get(BASE + '/__stats')).json()).refreshes;
   await page.evaluate(() => { const k = Object.keys(localStorage).find((x) => /^sb-.*-auth-token$/.test(x)); const s = JSON.parse(localStorage.getItem(k)); s.expires_at = Math.floor(Date.now() / 1000) + 10; localStorage.setItem(k, JSON.stringify(s)); });
@@ -69,7 +69,7 @@ const has = async (page, t, ms = 8000) => page.getByText(t, { exact: false }).fi
 // 7) Administrador del módulo: la gestión de usuarios es externa
 { const { ctx, page } = await fresh();
   await login(page, 'jefe@intransit.test', 'Clave-Jefe-1'); await page.waitForURL('**/operaciones/**');
-  await page.getByRole('tab', { name: 'Ajustes', exact: true }).click(); await page.getByRole('tab', { name: 'Usuarios' }).click();
+  await page.locator('nav.side').getByRole('button', { name: 'Ajustes', exact: true }).click(); await page.getByRole('tab', { name: 'Usuarios' }).click();
   check(await has(page, 'se gestionan en la app principal'), 'Ajustes → Usuarios explica que se gestionan en la app principal');
   check((await page.getByText('Nuevo usuario').count()) === 0, 'no hay alta de usuarios locales'); await page.screenshot({ path: OUT + '/04-jefe-usuarios.png' });
   check(await has(page, 'marta@intransit.test') || await has(page, 'jefe@intransit.test'), 'el usuario aparece reflejado en el módulo tras su primer acceso');

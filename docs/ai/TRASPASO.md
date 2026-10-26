@@ -155,3 +155,29 @@ Comando: `node scripts/intransit-startup.cjs` con JSON sintético por stdin, en 
 | Publicado (`89cde15`, Pages «built») en `intransit-gt.github.io/Master-App---OP-/` + Chrome | PASA: la raíz lleva a `app/`, entra en ~5 s, Dashboard con cifras, 7 pestañas, salir; 0 errores. `demo/` sigue respondiendo |
 
 **No verificado:** importar Excel a través de la función; uso simultáneo de varias personas; límites del plan gratuito de Supabase.
+
+## 2026-10-25 · Administrador de OP para la cuenta corporativa de proyectos
+
+**Solicitud:** Ing. Carmen, en su sesión: dar el rol de administrador del módulo OP a la cuenta corporativa de proyectos (dominio de la empresa), como primer punto.
+
+- **Ejecutado en Supabase `bocgzjupocnvjehklxhs`:** la cuenta ya existía en Auth (creada el 2026-10-11, sin `modulos`). Se agregó `app_metadata.modulos.operaciones = administrador` y su fila en `operaciones.users` (`password_hash` `!sso`), con el mismo SQL que «Dar acceso» (`setModuleRole`). No se cambió la contraseña ni otros metadatos; Transportes no lee `app_metadata`, así que no le afecta.
+- **Verificado:** `GET /api/usuarios` en la función en vivo con la sesión de `op-prueba-admin`: HTTP 200, la cuenta aparece como administrador activo.
+- **Deshacer:** en Ajustes › Usuarios, cambiarle el rol o desactivarla.
+
+## 2026-10-26 · Menú lateral al estilo Transportes
+
+**Solicitud:** Ing. Carmen pidió aplicar a OP el formato visual de Transportes: el menú a la izquierda en vez de arriba.
+
+- **Hecho:** `web/src/App.tsx`: cabecera compacta (isologo, nombre y sede, estado de guardado, Excel/PDF, ficha de usuario con iniciales, Salir) y menú lateral `nav.side` con ícono y nombre, opción activa con `aria-current`; debajo de 900 px el menú es un cajón que se abre con ☰ y se cierra al elegir, al tocar fuera o con Escape. `web/src/styles.css`: medidas y comportamiento de `css/app.css` de Transportes (menú de 226 px, contenido con desplazamiento propio sobre `#F4F7FA`), con la paleta propia de OP; reglas de impresión sin cabecera ni menú. Las subpestañas de cada módulo no cambian. Selectores de `e2e/smoke.mjs`, `e2e/demo-capturar.mjs` y `e2e/integrado/flujo.mjs` pasan de pestañas a botones del menú.
+- **INTERPRETACIÓN:** lista plana de 8 opciones; no se copiaron los grupos plegables de Transportes (con 8 opciones esconderían más de lo que ordenan) ni el modo oscuro.
+
+**Pruebas · Windows 11, Node 22.23.4, PostgreSQL 16.15, Chrome + playwright-core:**
+
+| Caso | Resultado |
+|---|---|
+| `cd web && npx tsc -b`, `npm test` | PASA: sin errores, 10/10 |
+| `e2e/smoke.mjs` contra el servidor local :3001 (base `omnia`) | PASA: 21/21, sin errores de consola (deja registros E2E en la base local) |
+| Teléfono 390×844 | PASA: menú oculto al entrar, ☰ lo abre, se cierra al elegir y con Escape, sin desborde horizontal |
+| `app/` y `demo/` regenerados, servidos en local en `/Master-App---OP-/` + Chrome | PASA: demo con las 8 opciones del menú recorridas, app en la pantalla de entrada; 0 errores de página |
+
+**Aprobado:** commit y publicación en GitHub Pages (Ing. Carmen, 2026-10-26). **No verificado:** `e2e/integrado/flujo.mjs` (Transportes de relleno); la app publicada con sesión real tras el push.

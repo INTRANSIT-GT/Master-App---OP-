@@ -19,7 +19,7 @@ await page.getByLabel('Correo').fill('supervisor@omnia.local'); await page.getBy
 await shot('login'); await page.getByRole('button', { name: 'Entrar' }).click();
 await expectText('DATOS DE DEMOSTRACIÓN'); await expectText('Horas hombre reportadas'); await shot('dashboard');
 
-const tab = async (name) => { await page.getByRole('tab', { name, exact: true }).click(); };
+const tab = async (name) => { await page.locator('nav.side').getByRole('button', { name, exact: true }).click(); };
 await tab('Resumen'); await expectText('Margen por proceso'); await expectText('N/D'); await shot('resumen');
 await page.getByLabel('Filtrar por semana').selectOption({ index: 1 }); await expectText('Mostrando'); await shot('resumen-semana');
 await tab('Inventario'); await expectText('Movimiento del mes'); await page.getByRole('tab', { name: 'Insumos' }).click(); await expectText('Catálogo de insumos'); await shot('inventario');
@@ -47,7 +47,7 @@ await page.getByLabel('Proveedor *').fill('PROVEEDOR E2E'); await page.getByLabe
 await shot('oc-form'); await page.getByRole('button', { name: 'Guardar y emitir' }).click(); await expectText('Orden OC-'); await expectText('PROVEEDOR E2E');
 
 // Comercial: el supervisor no lo ve; el usuario comercial sí
-if (await page.getByRole('tab', { name: 'Comercial', exact: true }).count()) fail('el supervisor ve Comercial');
+if (await page.locator('nav.side').getByRole('button', { name: 'Comercial', exact: true }).count()) fail('el supervisor ve Comercial');
 await page.getByRole('button', { name: 'Salir' }).click();
 await page.getByLabel('Correo').fill('comercial@omnia.local'); await page.getByLabel('Contraseña').fill('Omnia2026!demo'); await page.getByRole('button', { name: 'Entrar' }).click();
 await tab('Comercial'); await expectText('Total a cobrar'); await expectText('Cantidad a cobrar'); await shot('comercial');

@@ -1,6 +1,6 @@
 # ESTADO · OP (Operaciones)
 
-Actualizado: 2026-10-25 · Claude Code (extensión VS Code, Windows 11)
+Actualizado: 2026-10-26 · Claude Code (extensión VS Code, Windows 11)
 
 ## Objetivo autorizado
 Preparar la configuración local de Claude según el paquete de inicio v1.0. Autorizado por Ing. Carmen el 2026-10-25: clonar OP y Master App, preparar reglas, hook, estado y skill.
@@ -17,6 +17,8 @@ No autorizado: otros cambios en Supabase (nada de Transportes), servidores reale
 - Verificado en vivo: 13/13 llamadas a la API (sesión real, reportes, PDF, Excel, captura, permisos) y recorrido en Chrome del build de Pages servido en local en la misma ruta (8 pestañas, entrar/salir, clave mala, rol operador), sin errores de página.
 - **Hallazgos corregidos:** Walmart recalcula las cajas de cobro al editar cantidades; el cierre congela también cada semana. Pruebas en `server/test/hallazgos.test.ts`.
 - `cd server && npm test`: **97/97**; `cd web && npm test`: 10/10; `tsc` de server y web sin errores.
+- **Administrador de OP (2026-10-25):** la cuenta corporativa de proyectos tiene rol administrador en el módulo (ver TRASPASO).
+- **Menú lateral al estilo Transportes (2026-10-26):** cabecera compacta y menú a la izquierda (cajón con ☰ en teléfono), en `app/` y `demo/`. Ver TRASPASO.
 - **Demo estática** en `demo/` (solo lectura, sin cuenta), sigue publicada.
 - **OP corre en local:** PostgreSQL 16.15, bases `omnia` (recreada hoy: seed demo + mock de compras) y `omnia_test`; API :3001 y web :5173 en modo dev.
 - Kit de Claude, hook, EOS (`eos/`, 2026.10.25.3) y bitácora: ver TRASPASO.

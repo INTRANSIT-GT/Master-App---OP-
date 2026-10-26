@@ -1,6 +1,5 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, hasToken, setToken } from './api';
-import { Tabs } from './components';
 import { fmtDT } from './format';
 import { asset, cfg, ownLogin } from './module';
 import { clearSession, goPortal } from './sso';
@@ -15,45 +14,75 @@ import Comercial from './pages/Comercial';
 import Inventario from './pages/Inventario';
 import Ajustes from './pages/Ajustes';
 
-const TABS = [['dash', 'Dashboard'], ['prod', 'Producción'], ['horas', 'Horas y personal'], ['sum', 'Resumen'], ['compras', 'Compras'], ['inv', 'Inventario'], ['com', 'Comercial'], ['adj', 'Ajustes']] as const;
+// Menú lateral con el mismo formato que Transportes (Master App): ícono + nombre, la opción activa resaltada.
+const TABS = [['dash', 'Dashboard', 'home'], ['prod', 'Producción', 'factory'], ['horas', 'Horas y personal', 'users'], ['sum', 'Resumen', 'chart'], ['compras', 'Compras', 'cart'], ['inv', 'Inventario', 'box'], ['com', 'Comercial', 'dollar'], ['adj', 'Ajustes', 'gear']] as const;
 type Tab = (typeof TABS)[number][0];
 
 function Shell({ onLogout }: { onLogout: () => boolean | void }) {
   const { meta, month, logout, can, toast } = useApp();
   const sync = useSync();
   const [tab, setTab] = useState<Tab>(() => (TABS.some((t) => t[0] === location.hash.slice(1)) ? (location.hash.slice(1) as Tab) : 'dash'));
+  const [navOpen, setNavOpen] = useState(false);
+  const mainRef = useRef<HTMLElement>(null);
   useEffect(() => { const f = () => { const h = location.hash.slice(1) as Tab; if (TABS.some((t) => t[0] === h)) setTab(h); }; window.addEventListener('hashchange', f); return () => window.removeEventListener('hashchange', f); }, []);
-  const go = (t: Tab) => { setTab(t); location.hash = t; };
+  useEffect(() => { if (!navOpen) return; const f = (e: KeyboardEvent) => { if (e.key === 'Escape') setNavOpen(false); }; window.addEventListener('keydown', f); return () => window.removeEventListener('keydown', f); }, [navOpen]);
+  // el contenido se desplaza dentro de <main>: al cambiar de pantalla se vuelve arriba
+  const go = (t: Tab) => { setTab(t); location.hash = t; setNavOpen(false); mainRef.current?.scrollTo(0, 0); };
   const exp = (k: 'excel' | 'pdf') => api.download(`/exportar/${k}?mes=${month}`, `InTransit_Operaciones_${month}.${k === 'excel' ? 'xlsx' : 'pdf'}`).then(() => toast('Archivo descargado.')).catch((e) => toast(e.message, true));
   if (!meta) return <p className="muted" style={{ padding: 24 }}>Cargando…</p>;
   const st = sync.offline ? 'off' : sync.pending ? 'saving' : '';
   void onLogout;
   return (
-    <>
-      <header className="appbar"><div className="appbar-in">
-        <div className="brand"><img className="logo" src={asset('logo.png')} alt="Logotipo" /><div><h1>In Transit Operaciones</h1><p>Producción, compras, inventario y cobro · Sede {meta.sede}</p></div></div>
+    <div className={'app' + (navOpen ? ' nav-open' : '')}>
+      <header className="top">
+        <button className="navbtn" aria-label="Abrir menú" aria-expanded={navOpen} aria-controls="side-nav" onClick={() => setNavOpen(!navOpen)}><Icon name="menu" size={22} /></button>
+        <div className="brand"><span className="isotile"><img src={asset('isologo.png')} alt="In Transit" /></span><span className="brand-t">In Transit Operaciones<small>Producción, compras, inventario y cobro · Sede {meta.sede}</small></span></div>
+        <span className="spacer" />
+        <span className={'sync ' + st} role="status" aria-live="polite"><i />{sync.offline ? 'Sin conexión: no se guardó' : sync.pending ? 'Guardando…' : sync.lastSaved ? 'Guardado ' + fmtDT(new Date(sync.lastSaved).toISOString()) : 'Conectado'}</span>
         <div className="actions">
-          <span className={'sync ' + st} role="status" aria-live="polite"><i />{sync.offline ? 'Sin conexión: no se guardó' : sync.pending ? 'Guardando…' : sync.lastSaved ? 'Guardado ' + fmtDT(new Date(sync.lastSaved).toISOString()) : 'Conectado'}</span>
           {cfg.authMode === 'sso' && !ownLogin && <a className="btn btn-dark btn-sm" href={cfg.portalUrl + (cfg.portalUrl.includes('?') ? '&' : '?') + 'elegir=1'}>Módulos</a>}
           {can('exportar') && <><button className="btn btn-dark btn-sm" onClick={() => exp('excel')}>Excel</button><button className="btn btn-dark btn-sm" onClick={() => exp('pdf')}>PDF</button></>}
-          <div className="userbox"><b>{meta.user.name}</b><br />{meta.user.role}</div>
-          <button className="btn btn-dark btn-sm" onClick={logout}>Salir</button>
         </div>
-      </div></header>
+        <div className="userchip"><span className="avatar" aria-hidden="true">{initials(meta.user.name)}</span><span className="t"><b>{meta.user.name}</b><span>{meta.user.role}</span></span></div>
+        <button className="btn btn-dark btn-sm" onClick={logout}>Salir</button>
+      </header>
       {meta.demo && <div className="demo-banner" role="note">DATOS DE DEMOSTRACIÓN: las cifras no son reales ni deben usarse para decisiones</div>}
-      <div className="tabs-wrap"><Tabs items={TABS.filter((t) => t[0] !== 'com' || can('comercial.ver')).map((t) => [t[0], t[1]] as [Tab, string])} value={tab} onChange={go} /></div>
-      <main id="main">
-        {tab === 'dash' && <Dashboard go={go} />}
-        {tab === 'prod' && <Produccion />}
-        {tab === 'horas' && <Horas />}
-        {tab === 'sum' && <Resumen />}
-        {tab === 'compras' && <Compras />}
-        {tab === 'com' && <Comercial />}
-        {tab === 'inv' && <Inventario />}
-        {tab === 'adj' && <Ajustes />}
-      </main>
-    </>
+      <div className="body">
+        <nav className="side" id="side-nav" aria-label="Navegación principal">
+          {TABS.filter((t) => t[0] !== 'com' || can('comercial.ver')).map(([k, n, ic]) => <button key={k} aria-current={k === tab ? 'page' : undefined} onClick={() => go(k)}><Icon name={ic} />{n}</button>)}
+        </nav>
+        {navOpen && <div className="mback" onClick={() => setNavOpen(false)} />}
+        <main id="main" className="main" ref={mainRef}><div className="inner">
+          {tab === 'dash' && <Dashboard go={go} />}
+          {tab === 'prod' && <Produccion />}
+          {tab === 'horas' && <Horas />}
+          {tab === 'sum' && <Resumen />}
+          {tab === 'compras' && <Compras />}
+          {tab === 'com' && <Comercial />}
+          {tab === 'inv' && <Inventario />}
+          {tab === 'adj' && <Ajustes />}
+        </div></main>
+      </div>
+    </div>
   );
+}
+
+const initials = (n: string) => n.split(/\s+/).filter(Boolean).slice(0, 2).map((x) => x[0]).join('').toUpperCase();
+
+// Trazos de los íconos de Transportes (js/utils.js), más fábrica, carrito y caja para los módulos de OP.
+const ICON: Record<string, string> = {
+  home: 'M3 11l9-8 9 8M5 10v10h14V10',
+  factory: 'M3 21V10l6 4v-4l6 4V5h6v16zM3 21h18',
+  users: 'M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6M16 5a3 3 0 010 6M18 14c2 .8 3 2.8 3 6M12 8a3 3 0 11-6 0 3 3 0 016 0',
+  chart: 'M4 20V4M4 20h16M8 16v-5M12 16V8M16 16v-3',
+  cart: 'M2 3h3l2.5 12h11l2-8H6.2M10 20a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0M19 20a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0',
+  box: 'M3 7l9-4 9 4v10l-9 4-9-4zM3 7l9 4 9-4M12 11v10',
+  dollar: 'M12 3v18M16 7.5c0-1.7-1.8-3-4-3s-4 1.3-4 3 1.8 2.8 4 3.2 4 1.5 4 3.3-1.8 3-4 3-4-1.3-4-3',
+  gear: 'M15 12a3 3 0 11-6 0 3 3 0 016 0M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1',
+  menu: 'M3 6h18M3 12h18M3 18h18',
+};
+function Icon({ name, size = 18 }: { name: string; size?: number }) {
+  return <svg className="ic" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={ICON[name]} /></svg>;
 }
 
 export default function App() {

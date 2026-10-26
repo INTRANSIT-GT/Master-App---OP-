@@ -26,11 +26,11 @@ const calma = () => page.waitForTimeout(700);
 await page.goto(BASE, { waitUntil: 'domcontentloaded' });
 await page.getByLabel('Correo').fill('admin@omnia.local'); await page.getByLabel('Contraseña').fill('Omnia2026!demo');
 await page.getByRole('button', { name: 'Entrar' }).click();
-await page.locator('.tabs [role=tab]').first().waitFor(); await calma();
+await page.locator('nav.side button').first().waitFor(); await calma();
 
-const tabs = await page.locator('.tabs [role=tab]').allInnerTexts();
+const tabs = await page.locator('nav.side button').allInnerTexts();
 for (const t of tabs) {
-  await page.locator('.tabs [role=tab]', { hasText: t }).first().click(); await calma();
+  await page.locator('nav.side button', { hasText: t }).first().click(); await calma();
   for (const s of await page.locator('.subtabs [role=tab]').allInnerTexts()) {
     await page.locator('.subtabs [role=tab]', { hasText: s }).first().click(); await calma();
   }
