@@ -71,7 +71,7 @@ function OCView({ id, onClose, onChanged, onEdit }: { id: string; onClose: () =>
         <table className="tbl" style={{ marginTop: 10 }}><thead><tr><th>Código</th><th>Descripción</th><th>Tipo</th><th className="n">Cantidad</th><th className="n">Precio unit.</th><th className="n">Monto</th></tr></thead><tbody>
           {o.lines.map((l: any) => <tr key={l.id}><td>{l.code}</td><td>{l.description}</td><td>{l.matType}{l.matRef ? ` · ${l.matRef.replace(/^I:/, '')}` : ''}{l.area ? ` · ${l.area}` : ''}</td><td className="n">{nfx(l.qty)}</td><td className="n">{money(l.unitPrice, o.currency)}</td><td className="n">{money(l.amount, o.currency)}</td></tr>)}
         </tbody><tfoot><tr><td colSpan={5}>Monto total en {o.currency}</td><td className="n"><b>{money(o.total, o.currency)}</b></td></tr></tfoot></table>
-        {o.status === 'completada' && <p className="note" style={{ marginTop: 8 }}>Recibida el {fmtDate(o.receivedDate)}: los insumos, etiquetas, ribbon y bolsa ya están en inventario y los costos directos restan al área en el Resumen.</p>}
+        {o.status === 'completada' && <p className="note" style={{ marginTop: 8 }}>Recibida el {fmtDate(o.receivedDate)}: los insumos, etiquetas, ribbon y bolsa ya están en inventario y los costos directos restan al área en el resumen del mes (Excel y PDF).</p>}
         {o.status === 'anulada' && <p className="errline">Anulada: {o.voidReason}</p>}
         <h4 style={{ margin: '12px 0 4px' }}>Historial de la orden</h4>
         <table className="tbl"><tbody>{o.history.map((h: any) => <tr key={h.id}><td>{fmtDT(h.at)}</td><td>{h.userEmail ?? 'sistema'}</td><td>{h.action}</td><td>{h.reason}</td></tr>)}</tbody></table>
@@ -160,7 +160,7 @@ function OCForm({ edit, onClose, onSaved }: { edit?: any; onClose: () => void; o
           <button className="btn btn-sm" onClick={() => setLines([...lines, emptyLine()])}>＋ Agregar línea</button>
           <span>Monto total en {h.currency}: <b>{money(total, h.currency)}</b>{h.currency === 'USD' && <span className="muted"> · ≈ {money(total * (+h.exchangeRate || 1))}</span>}</span>
         </div>
-        <p className="muted" style={{ marginTop: 6 }}>Los tipos Insumo / Etiqueta / Ribbon / Bolsa ingresan al inventario al completar la orden. «Directo» y «Otro» restan su monto del área en el Resumen. ¿Falta un insumo? Créalo en Inventario → Insumos.</p>
+        <p className="muted" style={{ marginTop: 6 }}>Los tipos Insumo / Etiqueta / Ribbon / Bolsa ingresan al inventario al completar la orden. «Directo» y «Otro» restan su monto del área en el resumen del mes (Excel y PDF). ¿Falta un insumo? Créalo en Inventario → Insumos.</p>
       </fieldset>
       <fieldset className="fieldset"><legend>Firmas y control</legend><div className="form">{T('preparedBy', 'Realizado por')}{T('preparedPosition', 'Cargo')}{T('approvedBy', 'Autoriza (nombre)')}{T('approvedPosition', 'Puesto')}{T('lot', 'Lote')}{T('checkNo', 'Cheque')}{T('notes', 'Notas internas', 3)}</div></fieldset>
       {LISTS.map((k) => <datalist key={k} id={'oc-dl-' + k}>{(op?.[k] ?? []).map((v: string) => <option key={v} value={v} />)}</datalist>)}

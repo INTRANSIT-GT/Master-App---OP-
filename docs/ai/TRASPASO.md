@@ -176,8 +176,32 @@ Comando: `node scripts/intransit-startup.cjs` con JSON sintético por stdin, en 
 | Caso | Resultado |
 |---|---|
 | `cd web && npx tsc -b`, `npm test` | PASA: sin errores, 10/10 |
+| `cd server && npx tsc --noEmit`, `npm test` (exportaciones sin aviso) | PASA: sin errores, 97/97 |
 | `e2e/smoke.mjs` contra el servidor local :3001 (base `omnia`) | PASA: 21/21, sin errores de consola (deja registros E2E en la base local) |
 | Teléfono 390×844 | PASA: menú oculto al entrar, ☰ lo abre, se cierra al elegir y con Escape, sin desborde horizontal |
 | `app/` y `demo/` regenerados, servidos en local en `/Master-App---OP-/` + Chrome | PASA: demo con las 8 opciones del menú recorridas, app en la pantalla de entrada; 0 errores de página |
 
 **Aprobado:** commit y publicación en GitHub Pages (Ing. Carmen, 2026-10-26). **No verificado:** `e2e/integrado/flujo.mjs` (Transportes de relleno); la app publicada con sesión real tras el push.
+
+## 2026-10-27 · App operativa: sin barra de demostración, sin Dashboard ni Resumen, con modo oscuro
+
+**Solicitud (Ing. Carmen):** que no se vea la barra «DATOS DE DEMOSTRACIÓN: las cifras no son reales…»; quitar los módulos Dashboard y Resumen porque la app es operativa; agregar el modo oscuro. Después: quitar también el aviso del PDF y el Excel, y hacer el commit.
+
+- **Hecho (`web/`):** `App.tsx` sin la barra (el servidor sigue enviando `meta.demo`; solo deja de mostrarse) y con 6 opciones en el menú; la app abre en Producción (los enlaces viejos `#dash` y `#sum` también caen ahí). Se borraron `pages/Dashboard.tsx` y `pages/Resumen.tsx`.
+- **INTERPRETACIÓN:** el cierre y la reapertura del periodo y el ajuste de semanas (`PeriodControls`) solo estaban en Resumen. Para no perder el cierre de mes pasaron a **Ajustes › Periodos**, con el selector de mes encima de la tabla. Los textos que remitían «al Resumen» ahora dicen «resumen del mes (Excel y PDF)».
+- **Servidor:** `/api/dashboard` y `/api/resumen` siguen; el Excel (hoja RESUMEN) y el PDF del mes conservan margen por proceso e indicadores. `services/exporter.ts` ya no imprime «DATOS DE DEMOSTRACIÓN» en el Excel y PDF del mes ni en los de cada orden de compra; la prueba de exportaciones de `api.test.ts` comprueba ahora que el aviso no aparezca. Los registros siguen marcados `is_demo` en la base (solo cambia lo impreso).
+- **Modo oscuro:** `theme.ts` con el criterio de Transportes: sin elección sigue al sistema; el botón sol/luna de la cabecera fija claro u oscuro (`data-theme` en la raíz) y se recuerda en el navegador (`op_tema`). `styles.css`: tokens oscuros con los tonos de `css/app.css` de Transportes; `.btn-danger` usa `--bad` para leerse en oscuro.
+- **Pruebas:** `e2e/smoke.mjs` ya no espera la barra, Dashboard ni Resumen; comprueba que no aparezcan, que el tema oscuro se recuerde al recargar y que Ajustes › Periodos tenga el selector de mes.
+- **Builds:** `app/` (`build:supabase`) y `demo/` (`build:demo`) regenerados; la frase de la barra ya no está en ningún bundle.
+
+**Pruebas · Windows 11, Node 22.23.4, PostgreSQL 16.15, Chrome + playwright-core:**
+
+| Caso | Resultado |
+|---|---|
+| `cd web && npx tsc -b`, `npm test` | PASA: sin errores, 10/10 |
+| `cd server && npx tsc --noEmit`, `npm test` (exportaciones sin aviso) | PASA: sin errores, 97/97 |
+| `e2e/smoke.mjs` contra el servidor local :3001 (base `omnia`) | PASA: todo en verde, sin errores de consola (deja registros E2E en la base local) |
+| Modo oscuro en escritorio (Compras, Inventario) y teléfono 390×844, revisado en capturas | PASA: contraste legible, sin desborde horizontal, 0 errores de página |
+| `demo/` y `app/` servidos en local en `/Master-App---OP-/` + Chrome | PASA: menú de 6 opciones, sin barra, tema oscuro aplicado y recordado; app en la pantalla de entrada; 0 errores de página |
+
+**Aprobado:** commit (Ing. Carmen, 2026-10-27). **No verificado:** la app publicada en Pages con sesión real. **Pendiente:** el Excel y PDF que se descargan desde Pages los genera la Edge Function `operaciones`: siguen con el aviso hasta volver a desplegarla (`scripts/supabase-funcion.mjs`), lo que requiere autorización de Ing. Carmen (regla 8).

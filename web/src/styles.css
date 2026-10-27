@@ -23,8 +23,32 @@
   --accent:var(--single-blue);--accent-soft:var(--surface-tint);--copper:var(--ocean);--copper-soft:var(--surface-tint);
   --hl:#FFF6DD;--bad:#C21B0B;--bad-soft:#FDEDEB;--warn:#7A5200;--warn-soft:#FFF3D6;--ok:#00724A;--ok-soft:#E5F6EE;
   --sans:var(--font-body);--cond:var(--font-display);--r-lg:var(--radius-md);--r-md:var(--radius-md);--r-sm:var(--radius-sm);
+  color-scheme:light;
+}
+/* modo oscuro con los mismos tonos que Transportes (css/app.css): sigue al sistema salvo que el usuario elija
+   claro u oscuro con el botón de la cabecera (data-theme en la raíz, ver theme.ts). Los alias de arriba se heredan. */
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --surface:#13202F;--surface-tint:#12304A;
+    --text-primary:#EAF3FB;--text-secondary:#8696AB;--text-control:#B3C0D0;--text-on-blue:#04121F;
+    --border:#26384C;
+    --blue-range:#4DA8E6;--single-blue:#7DB4EE;--gray-dark:#B3C0D0;--gray-mid:#6B7C91;--gray-light:#34485E;--focus-ring:#7DB4EE;
+    --shadow-card:0 2px 8px rgba(0,0,0,.35);--app-bg:#0C1622;
+    --hl:#33290F;--bad:#FF8A7D;--bad-soft:#3A1A17;--warn:#E6B650;--warn-soft:#382C10;--ok:#6CCB97;--ok-soft:#153326;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --surface:#13202F;--surface-tint:#12304A;
+  --text-primary:#EAF3FB;--text-secondary:#8696AB;--text-control:#B3C0D0;--text-on-blue:#04121F;
+  --border:#26384C;
+  --blue-range:#4DA8E6;--single-blue:#7DB4EE;--gray-dark:#B3C0D0;--gray-mid:#6B7C91;--gray-light:#34485E;--focus-ring:#7DB4EE;
+  --shadow-card:0 2px 8px rgba(0,0,0,.35);--app-bg:#0C1622;
+  --hl:#33290F;--bad:#FF8A7D;--bad-soft:#3A1A17;--warn:#E6B650;--warn-soft:#382C10;--ok:#6CCB97;--ok-soft:#153326;
+  color-scheme:dark;
 }
 *,*::before,*::after{box-sizing:border-box}[hidden]{display:none!important}
+html{background:var(--app-bg)}
 body{margin:0;background:var(--surface);color:var(--text-control);font-family:var(--font-body);font-size:15px;line-height:22px;-webkit-font-smoothing:antialiased;font-variant-numeric:tabular-nums}
 button,input,select,textarea{font:inherit;color:inherit}
 :focus-visible{outline:2px solid var(--focus-ring);outline-offset:2px}
@@ -58,6 +82,8 @@ a{color:var(--single-blue)}
 .main{flex:1;min-width:0;overflow:auto;background:var(--app-bg)}
 .inner{max-width:1500px;margin:0 auto;padding:var(--space-24) 30px var(--space-48)}
 .navbtn,.mback{display:none}
+.themebtn{display:inline-grid;place-items:center;width:40px;height:40px;flex:none;padding:0;border:1px solid var(--border);background:var(--surface);border-radius:10px;color:var(--text-primary);cursor:pointer}
+.themebtn:hover{background:var(--surface-tint)}
 
 /* teléfono y pantallas angostas: el menú se vuelve un cajón que se abre con el botón de tres líneas */
 @media (max-width:899px){
@@ -82,10 +108,8 @@ a{color:var(--single-blue)}
 .btn-primary:hover,.btn-blue:hover{background:var(--single-blue);border-color:var(--single-blue)}
 .btn-dark{background:var(--surface);border-color:var(--blue-range);color:var(--blue-range)}.btn-dark:hover{background:var(--surface-tint)}
 .btn-sm{padding:4px 10px;font-size:12px;min-height:30px;border-radius:var(--radius-sm)}.btn-icon{padding:7px 10px}
-.btn-danger{color:var(--red);border-color:var(--red)}.btn-danger:hover{background:var(--bad-soft)}
+.btn-danger{color:var(--bad);border-color:var(--red)}.btn-danger:hover{background:var(--bad-soft)}
 .btn[disabled]{opacity:.45;cursor:not-allowed}
-
-.demo-banner{background:var(--yellow);color:#000;font-family:var(--font-display);font-weight:700;text-align:center;font-size:12px;padding:6px var(--space-16)}
 
 /* pestañas (las subpestañas de cada módulo usan .subtabs) */
 .tabs{max-width:1500px;margin:0 auto;padding:0 var(--space-24);display:flex;gap:var(--space-8);overflow-x:auto;scrollbar-width:none}
@@ -211,7 +235,7 @@ table{border-collapse:collapse;width:100%}
 .big-btn{font-size:14px;padding:10px 18px}
 
 @media (max-width:720px){.tabs{padding:0 var(--space-8)}.field.w2,.field.w3{grid-column:auto}}
-@media print{.top,.side,.toast-host{display:none}.app{height:auto}.main{overflow:visible;background:none}.card,.kpi{box-shadow:none}}
+@media print{.top,.side,.toast-host,.themebtn{display:none}.app{height:auto}.main{overflow:visible;background:none}.card,.kpi{box-shadow:none}}
 
 /* controles sueltos (búsqueda, filtros) con el mismo aspecto que los campos de formulario */
 main input:not([type=checkbox]):not([type=radio]):not([type=file]),main select,main textarea{border:1px solid var(--gray-light);border-radius:var(--radius-sm);padding:7px 10px;background:var(--surface);min-height:38px;color:var(--text-control)}

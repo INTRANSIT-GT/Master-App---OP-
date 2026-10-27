@@ -1,12 +1,13 @@
 # ESTADO · OP (Operaciones)
 
-Actualizado: 2026-10-26 · Claude Code (extensión VS Code, Windows 11)
+Actualizado: 2026-10-27 · Claude Code (extensión VS Code, Windows 11)
 
 ## Objetivo autorizado
 Preparar la configuración local de Claude según el paquete de inicio v1.0. Autorizado por Ing. Carmen el 2026-10-25: clonar OP y Master App, preparar reglas, hook, estado y skill.
 Ampliado el 2026-10-25: selector ASCII en EOS (operador, repos, modo), bitácora diaria (privada + resumen público por operador) y skill `intransit-bitacora`, pensado para un segundo operador (NORA, otra PC, pendiente de alta).
 Commit y push a `main` de OP y Transportes, y la demo pública en GitHub Pages: pedidos el 2026-10-25 en la sesión de Ing. Carmen (indicado como acordado con ella), para su presentación al equipo del 2026-10-26.
 **OP al estilo Transportes (GitHub Pages + Supabase)**, en el Supabase de prueba, corrigiendo antes los 2 hallazgos de cálculo: pedido el 2026-10-25 en la sesión de Ing. Carmen («el mismo, todo es una prueba; ejecuta de una vez, no hay producción»).
+**App operativa (2026-10-27, Ing. Carmen):** quitar la barra «DATOS DE DEMOSTRACIÓN», retirar Dashboard y Resumen, agregar modo oscuro; quitar el aviso del PDF y Excel; commit.
 No autorizado: otros cambios en Supabase (nada de Transportes), servidores reales ni otras correcciones de negocio.
 
 ## Base
@@ -19,6 +20,7 @@ No autorizado: otros cambios en Supabase (nada de Transportes), servidores reale
 - `cd server && npm test`: **97/97**; `cd web && npm test`: 10/10; `tsc` de server y web sin errores.
 - **Administrador de OP (2026-10-25):** la cuenta corporativa de proyectos tiene rol administrador en el módulo (ver TRASPASO).
 - **Menú lateral al estilo Transportes (2026-10-26):** cabecera compacta y menú a la izquierda (cajón con ☰ en teléfono), en `app/` y `demo/`. Ver TRASPASO.
+- **App operativa (2026-10-27):** sin barra de demostración; menú de 6 opciones (Producción, Horas y personal, Compras, Inventario, Comercial, Ajustes), abre en Producción; cierre y reapertura de periodo en Ajustes › Periodos; modo claro/oscuro; Excel y PDF sin aviso de demostración (en Pages, hasta volver a desplegar la Edge Function). Verificado en local (server 97/97, web 10/10, smoke); `app/` y `demo/` regenerados. Ver TRASPASO.
 - **Demo estática** en `demo/` (solo lectura, sin cuenta), sigue publicada.
 - **OP corre en local:** PostgreSQL 16.15, bases `omnia` (recreada hoy: seed demo + mock de compras) y `omnia_test`; API :3001 y web :5173 en modo dev.
 - Kit de Claude, hook, EOS (`eos/`, 2026.10.25.3) y bitácora: ver TRASPASO.

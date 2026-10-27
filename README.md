@@ -6,7 +6,7 @@ Evolución de «Resultados Omnia (3).html» (HTML con cálculo en el navegador) 
 
 Puede usarse **solo** (con su propio login) o como **módulo dentro del servidor común** junto a Transportes ([Master App](https://github.com/INTRANSIT-GT/Master-App)), con los mismos usuarios de Supabase y abriendo el módulo asignado a cada usuario. Ver [`docs/08`](docs/08-modulo-operaciones-e-integracion.md).
 
-> **Estado: prototipo funcional para validación.** Los datos precargados con `npm run seed` son de **demostración** (etiquetados `demo`, con banner visible). No usar esas cifras para decisiones.
+> **Estado: prototipo funcional para validación.** Los datos precargados con `npm run seed` son de **demostración** (cada registro lleva la etiqueta `demo`). No usar esas cifras para decisiones.
 
 **▶ [Abrir la app (prueba)](https://intransit-gt.github.io/Master-App---OP-/)**: GitHub Pages + Supabase, como Transportes; se entra con una cuenta de Supabase que tenga el módulo Operaciones y los cambios sí se guardan (datos de demostración). Cómo está armado y cómo actualizarlo: [`docs/09`](docs/09-supabase.md).
 
@@ -16,14 +16,14 @@ Puede usarse **solo** (con su propio login) o como **módulo dentro del servidor
 
 | Módulo | Estado |
 |---|---|
-| Dashboard (KPIs, HH vs asistencia por semana, alertas de inventario) | Operativo |
 | Producción por cliente/proyecto (alta, edición con motivo, anulación; sin borrado) | Operativo |
 | Horas y personal, asistencia semanal | Operativo |
-| Resumen de costos y margen (reglas R1–R20, validadas contra el HTML original) | Operativo |
+| Resumen de costos y margen (reglas R1–R20, validadas contra el HTML original): hoja RESUMEN del Excel y PDF del mes, sin pantalla propia desde el 2026-10-27 | Operativo |
 | Compras: órdenes de compra (borrador → emitida → completada/anulada), Excel y PDF | Operativo |
 | Inventario: stock, cobertura, insumos, merma, conteo físico | Operativo |
 | Comercial: reporte de cobro y tarifas por cliente (solo rol Comercial/Admin) | Operativo |
-| Ajustes: catálogos, estándares con vigencia, periodos (cierre/reapertura), usuarios, bitácora | Operativo |
+| Ajustes: catálogos, estándares con vigencia, periodos (semanas, cierre y reapertura), usuarios, bitácora | Operativo |
+| Modo claro u oscuro (sigue al sistema; el botón sol/luna de la cabecera lo fija en ese navegador) | Operativo |
 | Importación de Excel (contingencia, con vista previa) | Operativo |
 | Módulo integrable: ruta base `/operaciones`, acceso por sesión compartida de Supabase, portal selector de módulos, proxy para servidor común | Operativo; probado con Supabase **simulado** (no con uno real) |
 | Integración con SAP | **No implementada** (solo campos y tabla `external_refs` preparados) |

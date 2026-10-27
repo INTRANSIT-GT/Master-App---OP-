@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { api } from '../api';
-import { Card, Loading, Modal, Pill, Tabs, useLoad } from '../components';
+import { Card, Loading, Modal, MonthBar, Pill, Tabs, useLoad } from '../components';
 import { fmtDate, fmtDT, nf, nf2, nfx, q2 } from '../format';
 import { RecordForm, type FieldDef } from '../records-ui';
 import { useApp } from '../store';
+import PeriodControls from './PeriodControls';
 
 type T = 'std' | 'cli' | 'items' | 'gen' | 'imp' | 'per' | 'usr' | 'aud';
 export default function Ajustes() {
@@ -134,9 +135,11 @@ function Importar() {
 }
 
 function Periodos() {
+  const { month } = useApp();
   const { data, err, loading } = useLoad<any[]>(() => api.get('/periodos'), []);
-  return <Card title="Periodos" sub="El cierre y la reapertura se hacen desde el Resumen"><Loading err={err} loading={loading && !data} />
-    <table className="tbl"><thead><tr><th>Mes</th><th>Semanas</th><th>Fechas</th><th>Estado</th><th>Cerrado</th></tr></thead><tbody>{(data ?? []).map((p) => <tr key={p.month}><td style={{ textTransform: 'capitalize' }}>{p.title}</td><td>{p.weekFrom}–{p.weekTo} {p.override && <Pill kind="blue">ajustadas</Pill>}</td><td>{fmtDate(p.start)} al {fmtDate(p.end)}</td><td>{p.status === 'cerrado' ? <Pill kind="blue">Cerrado</Pill> : <Pill kind="ok">Abierto</Pill>}</td><td>{p.closedAt ? fmtDT(p.closedAt) : ''}</td></tr>)}</tbody></table></Card>;
+  return <><MonthBar status={data?.find((p) => p.month === month)?.status} extra={<PeriodControls />} />
+    <Card title="Periodos" sub="Elige el mes arriba para ajustar sus semanas, cerrarlo o reabrirlo"><Loading err={err} loading={loading && !data} />
+    <table className="tbl"><thead><tr><th>Mes</th><th>Semanas</th><th>Fechas</th><th>Estado</th><th>Cerrado</th></tr></thead><tbody>{(data ?? []).map((p) => <tr key={p.month}><td style={{ textTransform: 'capitalize' }}>{p.title}</td><td>{p.weekFrom}–{p.weekTo} {p.override && <Pill kind="blue">ajustadas</Pill>}</td><td>{fmtDate(p.start)} al {fmtDate(p.end)}</td><td>{p.status === 'cerrado' ? <Pill kind="blue">Cerrado</Pill> : <Pill kind="ok">Abierto</Pill>}</td><td>{p.closedAt ? fmtDT(p.closedAt) : ''}</td></tr>)}</tbody></table></Card></>;
 }
 
 function Usuarios() {

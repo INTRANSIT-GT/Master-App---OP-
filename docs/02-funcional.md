@@ -5,14 +5,14 @@ Interfaz en español con la identidad minimalista de In Transit (sistema de dise
 ## Módulos
 | Módulo | Función |
 |---|---|
-| Dashboard | KPIs del periodo (HH, asistencia, eficiencia, costo, costo neto, margen), gráfico por proceso y **filtro por semana** (clic en una barra semanal). Solo lectura. |
 | Producción | Botón **＋ Añadir nuevo registro**: se elige **cliente → proyecto** en menús desplegables y la fecha es la de hoy (automática; opción «otra fecha»). Fritolay: Maquila, Walmart, Embolsado Cobán, Descargas, Unisuper, Dollar City, Revisión, Etiquetado, Sunchips, Crackets. Coca Cola: Habilitación de envase‑trasiego, Habilitación de tarimas‑trasiego, Packs, Desarme. Alnost y XPORTA: Validación de fechas. Licorera: Etiquetado, Packs. **Los registros no se borran**: se editan (con motivo y control de versión) o se anulan con motivo; todo queda en la bitácora. En Maquila, al elegir el producto SAP ya no se pide descripción. |
 | Horas y personal | **Personal de maquila** (horas por proyecto; trabaja por metas, informativo y fuera de HH hasta que se suba el catálogo de equivalencia de productividad) y **Impresión y asistencia**. Se retiraron horas de coordinador/administración, Outsourcing y Entregas Villanueva. |
-| Resumen | Margen por proceso con **filtro por semana** (sustituye al antiguo módulo Resultados): Costo Q − requerimientos − material consumido; margen = neto ÷ HH. **N/D** si faltan HH o costo. |
 | Compras (órdenes de compra) | **Generar orden de compra** con el formato interno «Orden de compra y/o requerimiento de pago» (proveedor, condición de pago, líneas con código/descripción/cantidad/precio, firmas). Estados: borrador → emitida → **completada** | anulada. Al completar se actualiza el inventario (insumos, etiqueta, ribbon, bolsa) y los costos directos restan al área. Exporta a Excel y PDF; historial de materiales (qué, cantidad, monto, proveedor); incluye Requerimientos. |
 | Inventario | Stock y cobertura, movimiento del mes, **Insumos** (catálogo y movimientos, ligados a OC y a producción), merma, conteos físicos, etiqueta por material. |
 | Comercial | Solo rol Comercial y Administrador. **Reporte de cobro** semanal o mensual por cliente (Fritolay desde el motor de costo; los demás clientes = cantidad × tarifa vigente), Excel y **tarifas por cliente** con vigencia. Sin tarifa → «sin tarifa» y no suma. |
-| Ajustes | Clientes y proyectos, catálogos (productos, estándares con vigencia, bolsa, etiqueta por material), parámetros (incl. nombre de sede), periodos, importar Excel, usuarios, bitácora. |
+| Ajustes | Clientes y proyectos, catálogos (productos, estándares con vigencia, bolsa, etiqueta por material), parámetros (incl. nombre de sede), **periodos** (semanas del mes, cierre y reapertura), importar Excel, usuarios, bitácora. |
+
+Dashboard y Resumen se retiraron de la app el 2026-10-27 (pedido de Ing. Carmen: la app es operativa). El margen por proceso (Costo Q − requerimientos − material consumido; margen = neto ÷ HH; **N/D** si faltan HH o costo) sigue en la hoja RESUMEN del Excel y en el PDF del mes; el servidor conserva `/api/dashboard` y `/api/resumen`.
 
 ## Roles (se validan en el backend)
 | Permiso | Consulta | Operador | Supervisor | Comercial | Administrador |

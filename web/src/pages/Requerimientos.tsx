@@ -19,7 +19,7 @@ export default function Requerimientos() {
   return (
     <>
       <datalist id="matList">{labs.map((l: any) => <option key={l.id} value={l.code}>{l.name}</option>)}{ribs.map((r: any) => <option key={r.id} value={r.code}>{r.name}</option>)}<option value="BOLSA" /><option value="Etiqueta fluorescente 0.75X0.40625" /></datalist>
-      <RecordsPanel title="Requerimientos" path="requerimientos" fields={fields} createPerm="requerimiento.gestionar" hint="Etiquetas, ribbon y bolsa entran al inventario; lo demás se resta del área en el Resumen"
+      <RecordsPanel title="Requerimientos" path="requerimientos" fields={fields} createPerm="requerimiento.gestionar" hint="Etiquetas, ribbon y bolsa entran al inventario; lo demás se resta del área en el resumen del mes"
         columns={[{ h: 'Fecha', cell: D }, { h: 'Área', cell: (r) => meta?.areas.find((a) => a[0] === r.area)?.[1] ?? r.area }, { h: 'OC', cell: (r) => r.oc }, { h: 'Monto', n: true, cell: (r) => q2(r.amount) }, { h: 'Proveedor', cell: (r) => r.supplier }, { h: 'Cantidad', n: true, cell: (r) => nfx(r.qty) }, { h: 'Material', cell: (r) => `${r.matType}: ${r.matRef ?? ''}` }, { h: 'Obs.', cell: (r) => r.notes }]} />
     </>
   );

@@ -21,7 +21,7 @@ export default function Horas() {
       <MonthBar />
       <Tabs sub value={tab} onChange={setTab} items={[['maqp', 'Personal de maquila'], ['grid', 'Impresión y asistencia']]} />
       {tab === 'grid' ? <WeekGrid /> : <>
-        <p className="note">Aquí se captura el <b>personal de maquila</b>: como se trabaja por metas, las horas son informativas. Pendiente: catálogo de a cuántas horas equivale la productividad (se cargará después y se conectará al cálculo). No suman a las HH del Resumen.</p>
+        <p className="note">Aquí se captura el <b>personal de maquila</b>: como se trabaja por metas, las horas son informativas. Pendiente: catálogo de a cuántas horas equivale la productividad (se cargará después y se conectará al cálculo). No suman a las HH del resumen del mes.</p>
         <RecordsPanel key="maqp" title="Personal de maquila" path="horas" fixed={{ kind: 'maqp' }} query="kind=maqp" fields={fields} columns={cols} createPerm="registro.crear" hint="Horas del personal por día y proyecto" />
       </>}
     </>

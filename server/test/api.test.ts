@@ -187,7 +187,7 @@ describe('exportaciones', () => {
     const wb = new ExcelJS.Workbook(); await wb.xlsx.load(x.body);
     expect(wb.worksheets.map((w) => w.name)).toEqual(['RESULTADOS', 'RESUMEN', 'REQUERIMIENTOS', 'INVENTARIO', 'CAPTURA ETIQUETADO']);
     const cells: string[] = []; wb.getWorksheet('RESUMEN')!.eachRow((r) => r.eachCell((c) => cells.push(String(c.value))));
-    expect(cells).toContain('N/D'); expect(cells.join(' ')).toMatch(/DEMOSTRACIÓN/);
+    expect(cells).toContain('N/D'); expect(cells.join(' ')).not.toMatch(/DEMOSTRACIÓN/);
     const p = await s.get('/api/exportar/pdf?mes=2026-10').buffer(true).parse((res, cb) => { const ch: Buffer[] = []; res.on('data', (d: Buffer) => ch.push(d)); res.on('end', () => cb(null, Buffer.concat(ch))); });
     expect(p.status).toBe(200); expect(p.headers['content-type']).toBe('application/pdf'); expect(p.body.subarray(0, 5).toString()).toBe('%PDF-');
   });

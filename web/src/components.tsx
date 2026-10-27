@@ -48,7 +48,7 @@ export function MonthBar({ status, weeks, extra }: { status?: string; weeks?: st
     </div>
   );
 }
-/** Filtro por semana del mes (vacío = todo el mes). Se comparte entre Dashboard y Resumen. */
+/** Filtro por semana del mes (vacío = todo el mes). Lo usa Comercial. */
 export function WeekFilter({ weeks }: { weeks?: { monday: string; week: number }[] }) {
   const { week, setWeek } = useApp();
   if (!weeks?.length) return null;

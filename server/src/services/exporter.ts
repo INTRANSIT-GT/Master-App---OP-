@@ -3,7 +3,6 @@ import PDFDocument from 'pdfkit';
 import { pool } from '../db.js';
 import { AREAS, RES_NAME } from '../engine/types.js';
 import { monthReport } from './reports.js';
-import { getSettings } from './store.js';
 
 const AN = Object.fromEntries(AREAS);
 const ND = 'N/D';
@@ -15,15 +14,14 @@ async function monthData(k: number) {
     pool.query(`SELECT kind, record_date AS date, ref_doc, presentation, label_id, product_name, boxes, units, review_units, bad_boxes, process_status, notes FROM production_records
                 WHERE status='confirmado' AND kind IN ('etq','noc','qua','sun','crk') AND record_date BETWEEN $1 AND $2 ORDER BY record_date, kind`, [s, e]),
   ]);
-  const settings = await getSettings(pool);
-  return { rep, R, S: rep.resumen, inv: rep.inventory, reqs: reqs.rows, cap: cap.rows, demo: settings.demo === true };
+  return { rep, R, S: rep.resumen, inv: rep.inventory, reqs: reqs.rows, cap: cap.rows };
 }
 
 export async function excelReport(k: number): Promise<Buffer> {
-  const { rep, R, S, inv, reqs, cap, demo } = await monthData(k);
+  const { rep, R, S, inv, reqs, cap } = await monthData(k);
   const wb = new ExcelJS.Workbook(); wb.creator = 'Resultados Omnia'; wb.created = new Date();
   const head = (ws: ExcelJS.Worksheet, row: number) => { const r = ws.getRow(row); r.font = { bold: true, color: { argb: 'FFFFFFFF' } }; r.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1D2A3A' } }; r.alignment = { vertical: 'middle', wrapText: true }; };
-  const note = (ws: ExcelJS.Worksheet, t: string) => { ws.addRow([t]).font = { bold: true, size: 13 }; if (demo) { const r = ws.addRow(['DATOS DE DEMOSTRACIÓN: no usar para decisiones reales']); r.font = { bold: true, color: { argb: 'FFC23B22' } }; } if (rep.frozen) ws.addRow(['Periodo cerrado: cifras congeladas al cierre']).font = { italic: true }; ws.addRow([]); };
+  const note = (ws: ExcelJS.Worksheet, t: string) => { ws.addRow([t]).font = { bold: true, size: 13 }; if (rep.frozen) ws.addRow(['Periodo cerrado: cifras congeladas al cierre']).font = { italic: true }; ws.addRow([]); };
 
   // RESULTADOS
   let ws = wb.addWorksheet('RESULTADOS');
@@ -77,7 +75,7 @@ const n1 = (v: number) => v.toLocaleString('en-US', { minimumFractionDigits: 1, 
 const pct = (v: number | null) => (v == null ? ND : (v * 100).toFixed(1) + '%');
 
 export async function pdfReport(k: number): Promise<Buffer> {
-  const { rep, R, S, inv, demo } = await monthData(k);
+  const { rep, R, S, inv } = await monthData(k);
   const doc = new PDFDocument({ size: 'A4', layout: 'landscape', margin: 36, info: { Title: `Resultados Omnia ${R.period.title}` } });
   const chunks: Buffer[] = []; doc.on('data', (c) => chunks.push(c));
   const done = new Promise<Buffer>((res) => doc.on('end', () => res(Buffer.concat(chunks))));
@@ -85,7 +83,6 @@ export async function pdfReport(k: number): Promise<Buffer> {
   doc.rect(0, 0, doc.page.width, 58).fill('#1D2A3A'); doc.rect(0, 58, doc.page.width, 4).fill(COPPER);
   doc.fillColor('#EEF2F7').font('Helvetica-Bold').fontSize(20).text('Resultados Omnia', 36, 16).font('Helvetica').fontSize(10).fillColor('#A9B7C8').text(`${R.period.title} · semanas ${R.period.weeks[0]?.week}–${R.period.weeks.at(-1)?.week} · ${R.period.start} al ${R.period.end}${rep.frozen ? ' · periodo cerrado (cifras congeladas)' : ''}`, 36, 40);
   let y = 76;
-  if (demo) { doc.fillColor('#C23B22').font('Helvetica-Bold').fontSize(10).text('DATOS DE DEMOSTRACIÓN: no usar para decisiones reales', 36, y); y += 16; }
   const kpis: [string, string][] = [['HH reportadas', n1(R.HH)], ['Asistencia (h pagadas)', R.ASIS ? n1(R.ASIS) : ND], ['Eficiencia', pct(R.eff.month)], ['Costo Q', money(S.T.cost)], ['Costo neto', money(S.T.net)], ['Margen por HH', S.T.mg == null ? ND : money(S.T.mg)]];
   const kw = W / kpis.length;
   kpis.forEach(([l, v], i) => { doc.roundedRect(36 + i * kw, y, kw - 8, 46, 5).lineWidth(0.6).strokeColor('#D2D9E2').stroke(); doc.fillColor(GREY).font('Helvetica').fontSize(8).text(l, 44 + i * kw, y + 7, { width: kw - 24 }); doc.fillColor(INK).font('Helvetica-Bold').fontSize(14).text(v, 44 + i * kw, y + 22, { width: kw - 24 }); });
@@ -142,7 +139,6 @@ export async function excelPO(id: string): Promise<{ buf: Buffer; name: string }
   const put = (r: number, c: number, v: any, o: Partial<ExcelJS.Style> = {}) => { const cell = ws.getCell(r, c); cell.value = v; Object.assign(cell, { style: { ...cell.style, ...o } }); return cell; };
   const B = { font: { bold: true } };
   ws.mergeCells('A1:F1'); put(1, 1, 'ORDEN DE COMPRA Y/O REQUERIMIENTO DE PAGO', { font: { bold: true, size: 14 }, alignment: { horizontal: 'center' } });
-  if (po.isDemo) { ws.mergeCells('A2:F2'); put(2, 1, 'DATOS DE DEMOSTRACIÓN', { font: { bold: true, color: { argb: 'FFC23B22' } }, alignment: { horizontal: 'center' } }); }
   put(3, 1, EMPRESA.name, B); put(4, 1, EMPRESA.l1); put(5, 1, EMPRESA.l2); put(6, 1, EMPRESA.l3);
   const kv = (r: number, k: string, v: any) => { put(r, 4, k, B); ws.mergeCells(r, 5, r, 6); put(r, 5, v ?? ''); };
   kv(3, 'ORDEN NO.', po.number); kv(4, 'CENTRO DE COSTO', po.costCenter); kv(5, po.serviceType ? 'SERVICIOS' : 'CATEGORÍA', po.serviceType); kv(6, 'CONDICIÓN DE PAGO', po.paymentCondition === 'CREDITO' ? 'CRÉDITO' : 'CONTADO'); kv(7, 'FECHA DE OC:', fmtD(po.poDate));
@@ -179,7 +175,6 @@ export async function pdfPO(id: string): Promise<{ buf: Buffer; name: string }> 
   const done = new Promise<Buffer>((res) => doc.on('end', () => res(Buffer.concat(chunks))));
   const W = 540, kv = (k: string, v: any, x: number, y: number, w = 250) => { doc.font('Helvetica-Bold').fontSize(8).text(k, x, y, { width: 110, continued: false }); doc.font('Helvetica').fontSize(8.5).text(String(v ?? ''), x + 110, y, { width: w - 110 }); };
   doc.font('Helvetica-Bold').fontSize(13).text('ORDEN DE COMPRA Y/O REQUERIMIENTO DE PAGO', { align: 'center' });
-  if (po.isDemo) doc.fontSize(8).fillColor('#c23b22').text('DATOS DE DEMOSTRACIÓN', { align: 'center' }).fillColor('black');
   let y = doc.y + 8;
   doc.font('Helvetica-Bold').fontSize(9).text(EMPRESA.name, 36, y); doc.font('Helvetica').fontSize(8.5).text(EMPRESA.l1, 36, y + 12).text(EMPRESA.l2).text(EMPRESA.l3);
   kv('ORDEN NO.', po.number, 300, y); kv('CENTRO DE COSTO', po.costCenter, 300, y + 12); kv(po.serviceType ? 'SERVICIOS' : 'CATEGORÍA', po.serviceType, 300, y + 24); kv('CONDICIÓN DE PAGO', po.paymentCondition === 'CREDITO' ? 'CRÉDITO' : 'CONTADO', 300, y + 36); kv('FECHA DE OC:', fmtD(po.poDate), 300, y + 48);

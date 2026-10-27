@@ -17,15 +17,23 @@ const expectText = async (t, timeout = 8000) => { try { await page.getByText(t, 
 await page.goto(BASE, { waitUntil: 'domcontentloaded' });
 await page.getByLabel('Correo').fill('supervisor@omnia.local'); await page.getByLabel('Contraseña').fill('Omnia2026!demo');
 await shot('login'); await page.getByRole('button', { name: 'Entrar' }).click();
-await expectText('DATOS DE DEMOSTRACIÓN'); await expectText('Horas hombre reportadas'); await shot('dashboard');
+// la app abre en Producción, sin barra de demostración ni Dashboard/Resumen en el menú
+await page.getByRole('button', { name: /Añadir nuevo registro/ }).waitFor({ timeout: 8000 }); ok('abre en Producción'); await shot('produccion');
+if (await page.getByText('DATOS DE DEMOSTRACIÓN').count()) fail('se ve la barra de demostración');
+for (const n of ['Dashboard', 'Resumen']) if (await page.locator('nav.side').getByRole('button', { name: n, exact: true }).count()) fail('el menú tiene ' + n);
+
+// modo oscuro: el botón de la cabecera fija el tema y se recuerda al recargar
+await page.getByRole('button', { name: 'Cambiar a modo oscuro' }).click();
+await page.reload({ waitUntil: 'domcontentloaded' }); await page.getByRole('button', { name: 'Cambiar a modo claro' }).waitFor({ timeout: 8000 });
+(await page.evaluate(() => document.documentElement.dataset.theme)) === 'dark' ? ok('modo oscuro recordado') : fail('no quedó el modo oscuro'); await shot('modo-oscuro');
+await page.getByRole('button', { name: 'Cambiar a modo claro' }).click();
 
 const tab = async (name) => { await page.locator('nav.side').getByRole('button', { name, exact: true }).click(); };
-await tab('Resumen'); await expectText('Margen por proceso'); await expectText('N/D'); await shot('resumen');
-await page.getByLabel('Filtrar por semana').selectOption({ index: 1 }); await expectText('Mostrando'); await shot('resumen-semana');
 await tab('Inventario'); await expectText('Movimiento del mes'); await page.getByRole('tab', { name: 'Insumos' }).click(); await expectText('Catálogo de insumos'); await shot('inventario');
 await tab('Compras'); await expectText('Órdenes de compra y/o requerimientos'); await shot('compras');
 await tab('Horas y personal'); await expectText('Personal de maquila'); await shot('horas'); await page.getByRole('tab', { name: 'Impresión y asistencia' }).click(); await expectText('Impresión de etiquetas');
 await tab('Ajustes'); await expectText('Maquila: productos'); await shot('ajustes');
+await page.getByRole('tab', { name: 'Periodos' }).click(); await expectText('Elige el mes arriba'); await page.getByLabel('Mes', { exact: true }).waitFor(); ok('Periodos con selector de mes'); await shot('periodos');
 
 // Producción: añadir registro (Coca Cola → Packs), fecha automática, anular (no hay borrar)
 await tab('Producción'); await page.getByRole('button', { name: /Añadir nuevo registro/ }).click();

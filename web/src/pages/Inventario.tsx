@@ -43,7 +43,7 @@ export default function Inventario() {
                 <td className="n">{r.price == null ? <Pill kind="warn">Sin precio</Pill> : r.kind === 'bag' ? 'Q' + r.unitCost.toFixed(4) : q2(r.unitCost) + (r.kind === 'rib' ? '/rollo' : '/u')}</td><td className="n">{r.con + r.mer ? q2(r.costConsumed) : ''}</td></tr>); })}
           </tbody></table></div>
         </Card>
-        <Card title="Costo consumido por rubro" sub="Así se resta en el Resumen">
+        <Card title="Costo consumido por rubro" sub="Así se resta en el resumen del mes (Excel y PDF)">
           <div className="tbl-wrap"><table className="tbl"><thead><tr><th>Artículo</th>{Object.keys(GN).map((g) => <th key={g} className="n">{GN[g]}</th>)}<th className="n">Merma</th></tr></thead><tbody>
             {inv.rows.filter((r: any) => Object.keys(r.conG).length || r.mer).map((r: any) => <tr key={r.id}><td>{r.name}</td>{Object.keys(GN).map((g) => <td key={g} className="n">{r.conG[g] ? q2(r.conG[g] * r.unitCost) : ''}</td>)}<td className="n">{r.mer ? q2(r.mer * r.unitCost) : ''}</td></tr>)}
           </tbody></table></div>
