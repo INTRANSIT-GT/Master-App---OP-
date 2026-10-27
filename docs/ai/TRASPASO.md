@@ -256,6 +256,7 @@ Comando: `node scripts/intransit-startup.cjs` con JSON sintético por stdin, en 
 | `demo/` y `app/` servidos en local | PASA: 0 errores; la demo muestra la sede |
 | Supabase: `node scripts/supabase-base.mjs migrar` | PASA: 003 aplicada; 4 sedes, 8 usuarios a Omnia, 629 registros y 13 OC en Omnia |
 | Supabase: `node scripts/supabase-funcion.mjs --desplegar` y lecturas en vivo con las cuentas de prueba | PASA: admin ve 4 sedes; Hilo vacía; Excel de Hilo con su nombre; operador solo Omnia (Hilo → 403); CORS admite `x-sede` |
+| Pages publicado (`58ecba3`) en Chrome con `op-prueba-admin` | PASA: Omnia 499 registros de octubre, Hilo 0; el selector cambia de sede y vuelve; 0 errores de página |
 
-**No verificado:** recorrido de Pages con sesión real en el navegador tras publicar; escrituras en Supabase en otra sede (solo lecturas en vivo).
+**No verificado:** escrituras en Supabase en otra sede (en vivo solo hubo lecturas; las escrituras por sede están cubiertas por las pruebas locales).
 **Pendiente:** asignar sedes al equipo en Ajustes › Usuarios; confirmar qué catálogos deben ser propios de cada sede. El servidor local viejo en :3001 (de una sesión anterior) sigue con el código previo; el nuevo corrió en :3011.
