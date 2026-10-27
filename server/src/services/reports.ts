@@ -18,7 +18,7 @@ export function invOut(eng: Engine, p: Period) {
   return { baseDate: iso(inv.bd), rows, materialCost: eng.materialCost(p) };
 }
 
-export async function periodRow(k: number) { return (await pool.query('SELECT * FROM periods WHERE month_key = $1', [k])).rows[0] ?? null; }
+export async function periodRow(sede: string, k: number) { return (await pool.query('SELECT * FROM periods WHERE sede_id = $1 AND month_key = $2', [sede, k])).rows[0] ?? null; }
 
 /** Periodo de una sola semana (lunes a domingo) dentro de un mes; sirve para filtrar Resumen, Dashboard e Inventario por semana. */
 export function weekPeriod(k: number, ws: number[], monday: string): Period {
@@ -28,8 +28,8 @@ export function weekPeriod(k: number, ws: number[], monday: string): Period {
 }
 const isoWeekNo = (n: number) => { const th = n - ((new Date(n * 864e5).getUTCDay() + 6) % 7) + 3, y = new Date(th * 864e5).getUTCFullYear(); return Math.floor((th - Date.UTC(y, 0, 1) / 864e5) / 7) + 1; };
 
-export async function monthReport(k: number, week?: string) {
-  const eng = await getEngine(), row = await periodRow(k);
+export async function monthReport(sede: string, k: number, week?: string) {
+  const eng = await getEngine(sede), row = await periodRow(sede, k);
   const p = week ? weekPeriod(k, period(k, eng.d.mw).ws, week) : period(k, eng.d.mw);
   if (!week && row?.status === 'cerrado' && row.snapshot) return { ...row.snapshot, frozen: true, closedAt: row.closed_at };
   const wk = week && row?.status === 'cerrado' ? row.snapshot?.weeks?.[week] : null;   // semana de un periodo cerrado: cifras del cierre
@@ -38,14 +38,14 @@ export async function monthReport(k: number, week?: string) {
   return { month: monthStr(k), week: week ?? null, status: row?.status ?? 'abierto', frozen: row?.status === 'cerrado' && !!week, results, resumen, inventory: invOut(eng, p), stock: eng.stock(dn(tzToday())!) };
 }
 
-export async function dashboard(k: number, week?: string) {
-  const rep: any = await monthReport(k, week), eng = await getEngine(), p = week ? weekPeriod(k, period(k, eng.d.mw).ws, week) : period(k, eng.d.mw);
-  const { results: R, resumen: S } = rep, M: any = week ? await monthReport(k) : rep;
+export async function dashboard(sede: string, k: number, week?: string) {
+  const rep: any = await monthReport(sede, k, week), eng = await getEngine(sede), p = week ? weekPeriod(k, period(k, eng.d.mw).ws, week) : period(k, eng.d.mw);
+  const { results: R, resumen: S } = rep, M: any = week ? await monthReport(sede, k) : rep;
   const s = iso(p.s), e = iso(p.e);
   const [drafts, recent, byStatus] = await Promise.all([
-    pool.query(`SELECT (SELECT count(*) FROM production_records WHERE status='borrador' AND record_date BETWEEN $1 AND $2) + (SELECT count(*) FROM hours_records WHERE status='borrador' AND record_date BETWEEN $1 AND $2) AS n`, [s, e]),
-    pool.query(`SELECT at, user_email, entity, action FROM audit_log ORDER BY id DESC LIMIT 8`),
-    pool.query(`SELECT (SELECT count(*) FROM production_records WHERE record_date BETWEEN $1 AND $2 AND status='confirmado') prod, (SELECT count(*) FROM hours_records WHERE record_date BETWEEN $1 AND $2 AND status='confirmado') hrs`, [s, e]),
+    pool.query(`SELECT (SELECT count(*) FROM production_records WHERE sede_id = $3 AND status='borrador' AND record_date BETWEEN $1 AND $2) + (SELECT count(*) FROM hours_records WHERE sede_id = $3 AND status='borrador' AND record_date BETWEEN $1 AND $2) AS n`, [s, e, sede]),
+    pool.query(`SELECT at, user_email, entity, action FROM audit_log WHERE sede_id = $1 ORDER BY id DESC LIMIT 8`, [sede]),
+    pool.query(`SELECT (SELECT count(*) FROM production_records WHERE sede_id = $3 AND record_date BETWEEN $1 AND $2 AND status='confirmado') prod, (SELECT count(*) FROM hours_records WHERE sede_id = $3 AND record_date BETWEEN $1 AND $2 AND status='confirmado') hrs`, [s, e, sede]),
   ]);
   const stock = (rep.stock ?? []) as any[];
   const pend: string[] = [];

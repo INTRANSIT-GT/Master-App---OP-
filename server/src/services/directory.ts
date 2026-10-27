@@ -4,6 +4,7 @@
 import { MODULE_ID, config } from '../config.js';
 import type { Q } from '../db.js';
 import { HttpError, conflict } from '../http.js';
+import { SEDES_DE } from '../sede.js';
 
 /** modulos en forma de lista (["operaciones"]) se pasa a objeto, como deploy/supabase/asignar-modulos.sql. */
 const MODS = `CASE jsonb_typeof(au.raw_app_meta_data->'modulos')
@@ -11,7 +12,7 @@ const MODS = `CASE jsonb_typeof(au.raw_app_meta_data->'modulos')
     WHEN 'array' THEN (SELECT coalesce(jsonb_object_agg(x, 'consulta'), '{}'::jsonb) FROM jsonb_array_elements_text(au.raw_app_meta_data->'modulos') x)
     ELSE '{}'::jsonb END`;
 const COLS = `au.id, au.email, coalesce(u.name, au.raw_user_meta_data->>'full_name', au.raw_user_meta_data->>'name', split_part(au.email, '@', 1)) AS name,
-  (${MODS})->>'${MODULE_ID}' AS role, coalesce(u.active, true) AS active, au.created_at AS "createdAt"`;
+  (${MODS})->>'${MODULE_ID}' AS role, coalesce(u.active, true) AS active, au.created_at AS "createdAt", ${SEDES_DE('au.id')}`;
 
 export async function listDirectory(q: Q) {
   return (await q.query(`SELECT ${COLS} FROM auth.users au LEFT JOIN users u ON u.id = au.id WHERE (${MODS}) ? '${MODULE_ID}' ORDER BY 3`)).rows;

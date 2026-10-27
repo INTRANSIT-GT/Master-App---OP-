@@ -19,7 +19,7 @@ Los de `01-auditoria.md` §10 (P1–P13). Prioritarios: P3 divisor Walmart 19, P
 - **Catálogo de productividad del personal de maquila** (equivalencia metas → horas): se subirá después; hoy las horas de maquila son informativas y no entran a HH.
 - **Consumo de insumos por caja o por tarima**: se calculará después; hoy el consumo se registra manualmente por proyecto/área.
 - **Formato de OC**: tomado del ejemplo FLEE‑12 (OC_FLEETIO_JULIO.pdf). Confirmar numeración por prefijo y flujo de aprobación (quién emite/completa).
-- **Multisede**: aún no. Solo existe el ajuste «sede» (nombre en el encabezado, por defecto Omnia). Replicar en otras sedes requiere un identificador de sede en los datos, permisos por sede y catálogos por sede.
+- **Multisede**: hecha el 2026-10-27 (migración `003_sedes.sql`): cada registro operativo pertenece a una sede y cada usuario entra a las sedes asignadas. **Pendiente de decidir:** si algún catálogo debe ser propio de cada sede (estándares, tarifas, artículos o clientes hoy son comunes) y si las órdenes de compra deben numerarse por sede (hoy la numeración por prefijo es común).
 
 ## Limitaciones del prototipo
 - Sin conector SAP; el Excel solo como importador de contingencia.

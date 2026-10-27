@@ -1,6 +1,7 @@
 // Base de Operaciones en Supabase: esquema propio «operaciones» (no toca los de Transportes) + datos.
 //   node scripts/supabase-base.mjs esquema          → crea el esquema y aplica db/migrations (falla si ya existe)
 //   node scripts/supabase-base.mjs datos            → copia los datos de la base local omnia (pg_dump) al esquema
+//   node scripts/supabase-base.mjs migrar           → aplica las migraciones de db/migrations que el esquema aún no tiene
 //   node scripts/supabase-base.mjs rehacer          → borra el esquema operaciones y repite esquema + datos
 // Usa la CLI de Supabase con sesión (supabase login) y el proyecto de supabase/proyecto.json. Ver docs/09-supabase.md.
 // La base local se prepara con: python scripts/reset-db-windows.py omnia && cd server && npm run seed
@@ -41,6 +42,19 @@ function esquema() {
   console.log(`Esquema ${SCHEMA} creado con ${migs.length} migraciones.`);
 }
 
+// cada migración pendiente en su propia transacción, igual que server/src/migrate.ts
+function migrar() {
+  const out = query(`SELECT name FROM ${SCHEMA}.schema_migrations;`, 'aplicadas');
+  const done = new Set(JSON.parse(out.slice(out.indexOf('{'))).rows.map((r) => r.name));
+  const pend = fs.readdirSync(path.join(root, 'db', 'migrations')).filter((f) => f.endsWith('.sql') && !done.has(f)).sort();
+  if (!pend.length) return console.log('Sin migraciones pendientes.');
+  for (const f of pend) {
+    const sql = fs.readFileSync(path.join(root, 'db', 'migrations', f), 'utf8');
+    query(`BEGIN;\nSET LOCAL search_path TO ${SCHEMA}, extensions;\n-- ${f}\n${sql}\nINSERT INTO ${SCHEMA}.schema_migrations (name) VALUES ('${f}');\nCOMMIT;`, 'migrar');
+    console.log(`Aplicada: ${f}`);
+  }
+}
+
 function datos() {
   const dump = execFileSync(pgBin('pg_dump'), ['-h', 'localhost', '-U', 'omnia', '-d', process.env.OP_BASE_LOCAL ?? 'omnia', '--data-only', '--column-inserts', '--no-owner', '--schema=public', '--exclude-table=public.schema_migrations'],
     { encoding: 'utf8', env: { ...process.env, PGPASSWORD: process.env.PGPASSWORD ?? 'omnia_dev' }, maxBuffer: 256 << 20 });
@@ -65,6 +79,7 @@ const cmd = process.argv[2];
 try {
   if (cmd === 'esquema') esquema();
   else if (cmd === 'datos') datos();
+  else if (cmd === 'migrar') migrar();
   else if (cmd === 'rehacer') { query(`DROP SCHEMA IF EXISTS ${SCHEMA} CASCADE;`, 'borrar'); esquema(); datos(); }
-  else { console.log('Uso: node scripts/supabase-base.mjs esquema | datos | rehacer'); process.exitCode = 1; }
+  else { console.log('Uso: node scripts/supabase-base.mjs esquema | datos | migrar | rehacer'); process.exitCode = 1; }
 } finally { fs.rmSync(work, { recursive: true, force: true }); }

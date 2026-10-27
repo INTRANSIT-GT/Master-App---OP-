@@ -10,7 +10,14 @@ Interfaz en español con la identidad minimalista de In Transit (sistema de dise
 | Compras (órdenes de compra) | **Generar orden de compra** con el formato interno «Orden de compra y/o requerimiento de pago» (proveedor, condición de pago, líneas con código/descripción/cantidad/precio, firmas). Estados: borrador → emitida → **completada** | anulada. Al completar se actualiza el inventario (insumos, etiqueta, ribbon, bolsa) y los costos directos restan al área. Exporta a Excel y PDF; historial de materiales (qué, cantidad, monto, proveedor); incluye Requerimientos. |
 | Inventario | Stock y cobertura, movimiento del mes, **Insumos** (catálogo y movimientos, ligados a OC y a producción), merma, conteos físicos, etiqueta por material. |
 | Comercial | Solo rol Comercial y Administrador. **Reporte de cobro** semanal o mensual por cliente (Fritolay desde el motor de costo; los demás clientes = cantidad × tarifa vigente), Excel y **tarifas por cliente** con vigencia. Sin tarifa → «sin tarifa» y no suma. |
-| Ajustes | Clientes y proyectos, catálogos (productos, estándares con vigencia, bolsa, etiqueta por material), parámetros (incl. nombre de sede), **periodos** (semanas del mes, cierre y reapertura), importar Excel, usuarios, bitácora. |
+| Ajustes | Clientes y proyectos, catálogos (productos, estándares con vigencia, bolsa, etiqueta por material), parámetros, **periodos** (semanas del mes, cierre y reapertura), importar Excel, usuarios y **sedes**, bitácora. |
+
+## Sedes
+Sedes iniciales: SEDE FRITOLAY OMNIA, SEDE FRITOLAY SAN JUAN, SEDE HILO y SEDE INTRANSIT Z11 (se agregan o desactivan en Ajustes › Usuarios › Sedes).
+- **Cada sede ve solo lo suyo**: producción, horas, asistencia, requerimientos, merma, insumos, conteos de inventario, órdenes de compra, importaciones, **periodos y cierres**, reportes, cobro, Excel/PDF y la bitácora. Cerrar el mes de una sede no bloquea las demás.
+- **Comunes a todas**: clientes y proyectos, productos SAP, estándares y tarifas, artículos de inventario, parámetros generales y usuarios.
+- **Quién entra a cada sede**: el administrador, a todas; los demás, a las que tengan marcadas en Ajustes › Usuarios. La sede activa aparece en la cabecera; si la persona tiene varias, ahí mismo la cambia. Sin sede asignada se muestra «Sin sede asignada».
+- Lo registrado antes del 2026-10-27 quedó en SEDE FRITOLAY OMNIA.
 
 Dashboard y Resumen se retiraron de la app el 2026-10-27 (pedido de Ing. Carmen: la app es operativa). El margen por proceso (Costo Q − requerimientos − material consumido; margen = neto ÷ HH; **N/D** si faltan HH o costo) sigue en la hoja RESUMEN del Excel y en el PDF del mes; el servidor conserva `/api/dashboard` y `/api/resumen`.
 
@@ -40,6 +47,6 @@ Dashboard y Resumen se retiraron de la app el 2026-10-27 (pedido de Ing. Carmen:
 
 ## Como módulo de la app principal (acceso compartido)
 - Con `AUTH_MODE=sso` no hay pantalla de login propia: se entra desde el portal con el usuario de Supabase y el módulo se abre solo si el usuario lo tiene asignado.
-- El **rol** del usuario en Operaciones (administrador, supervisor, operador, consulta o comercial) viene de la asignación del módulo, no de Ajustes. En Ajustes → Usuarios solo se puede **suspender o reactivar** el acceso al módulo.
+- El **rol** del usuario en Operaciones (administrador, supervisor, operador, consulta o comercial) viene de la asignación del módulo, no de Ajustes. En Ajustes → Usuarios solo se puede **suspender o reactivar** el acceso al módulo y **asignar sus sedes**.
 - El encabezado incluye el botón **Módulos** para volver al selector, y **Salir** cierra la sesión compartida.
 - Mensajes: «Módulo no asignado» (sin el módulo), «Acceso no disponible» (rol inválido o usuario suspendido), «No se pudo validar tu sesión» (token rechazado).

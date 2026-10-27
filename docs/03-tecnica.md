@@ -5,7 +5,7 @@
 Motor de cálculo en `server/src/engine/` (puro, sin BD; réplica documentada de las reglas R1–R20). Servicios en `server/src/services/`, rutas en `server/src/routes/`. Migraciones SQL versionadas en `db/migrations/` (tabla `schema_migrations`).
 
 ## Base de datos (resumen)
-users, process_lines, products, standards (EXCLUDE gist: sin vigencias solapadas), settings, inv_items, bag_usage, material_labels, inventory_counts, import_batches, production_records, hours_records, attendance, requirements, inventory_scrap, incidents, periods, audit_log, idempotency_keys, external_refs (puente SAP).
+sedes, user_sedes, users, process_lines, products, standards (EXCLUDE gist: sin vigencias solapadas), settings, inv_items, bag_usage, material_labels, inventory_counts, import_batches, production_records, hours_records, attendance, requirements, inventory_scrap, incidents, periods, audit_log, idempotency_keys, external_refs (puente SAP).
 
 ## API (prefijo `/api`)
 auth/*, produccion, horas, requerimientos, merma (+ `/:id/anular`, `/:id/confirmar`), asistencia/:lunes, inventario/conteo(s), catalogo (+productos, estandares, items, bolsa, materiales), ajustes, meta, resultados, resumen, inventario, dashboard, periodos (+precierre, cerrar, reabrir, semanas), auditoria, exportar/excel|pdf, importar (+vista-previa, /:id/aplicar), usuarios.
@@ -64,3 +64,10 @@ Ver README. Cubren paridad con el HTML, permisos, duplicados, idempotencia, cier
 - Errores nuevos: 403 `MODULO_NO_ASIGNADO`, `ROL_INVALIDO`, `USUARIO_INACTIVO`; 400 `SESION_EXTERNA`; 409 `GESTION_EXTERNA`.
 - Web: `module.ts` (configuración), `sso.ts` (lectura y renovación de la sesión de Supabase), build con `base: './'`. CSP: `connect-src` incluye la URL de Supabase solo en modo `sso`.
 - Integración completa: `docs/08-modulo-operaciones-e-integracion.md`.
+
+## Sedes (2026-10-27)
+- **Migración** `db/migrations/003_sedes.sql`: tablas `sedes` y `user_sedes`; `sede_id` (NOT NULL, sin valor por defecto) en `production_records`, `hours_records`, `attendance`, `requirements`, `inventory_scrap`, `inventory_counts`, `supply_movements`, `periods`, `purchase_orders`, `import_batches` e `incidents`; `audit_log.sede_id` (nulo en acciones sin sede, como el inicio de sesión). Lo existente pasó a `OMNIA`. La unicidad (llave natural, asistencia por semana, conteo por fecha, periodo por mes) ahora es por sede, y `trg_lock_period` bloquea solo la sede del periodo cerrado (`assert_period_open(sede, fecha)`).
+- `server/src/sede.ts` (después de `authenticate`): resuelve las sedes del usuario (administrador: todas las activas; demás: `user_sedes`), toma la elegida del encabezado **`X-Sede`** (sin él, la primera) y fija `req.sede` y `user.sede`. Lecturas filtran con `req.sede`; escrituras con `sedeDe(user)`. Errores: 403 `SEDE_NO_ASIGNADA` (sede pedida no asignada; nunca se cambia en silencio) y 403 `SIN_SEDE` (sin sedes; `/api/meta` sí responde, con `sede: null`).
+- El motor se arma por sede (`getEngine(sede)`); catálogos, estándares, tarifas y ajustes son comunes.
+- API: `/api/meta` devuelve `sede` y `sedes`; `/api/usuarios` acepta y devuelve `sedes`; `/api/sedes` (GET, POST, PATCH `/:id`) con permiso `usuarios.gestionar`. Los Excel/PDF llevan la sede en el título y en el nombre del archivo.
+- Web: `api.ts` guarda la sede en `localStorage` (`op_sede`) y la envía en cada llamada; la cabecera muestra la sede o un selector (cambiar recarga la página). Pruebas: `server/test/sedes.test.ts`.

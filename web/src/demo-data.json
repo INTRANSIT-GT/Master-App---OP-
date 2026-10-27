@@ -67,7 +67,10 @@
     ]
    },
    "demo": true,
-   "sede": "Omnia",
+   "sede": {
+    "id": "OMNIA",
+    "name": "SEDE FRITOLAY OMNIA"
+   },
    "inicio": "2026-10-05",
    "wmDiv": 19,
    "defaultMonth": "2026-10",
@@ -329,7 +332,13 @@
     "basePath": ""
    },
    "authMode": "local",
-   "portalUrl": "/"
+   "portalUrl": "/",
+   "sedes": [
+    {
+     "id": "OMNIA",
+     "name": "SEDE FRITOLAY OMNIA"
+    }
+   ]
   },
   "/dashboard?mes=2026-10": {
    "month": "2026-10",
@@ -24081,7 +24090,10 @@
     "name": "Administrador Demo",
     "role": "administrador",
     "active": true,
-    "createdAt": "2026-10-26T00:54:36.770Z"
+    "createdAt": "2026-10-26T00:54:36.770Z",
+    "sedes": [
+     "OMNIA"
+    ]
    },
    {
     "id": "386b3fd4-6c8a-4e79-aa97-1b3febf5497a",
@@ -24089,7 +24101,10 @@
     "name": "Comercial Demo",
     "role": "comercial",
     "active": true,
-    "createdAt": "2026-10-26T00:54:36.770Z"
+    "createdAt": "2026-10-26T00:54:36.770Z",
+    "sedes": [
+     "OMNIA"
+    ]
    },
    {
     "id": "87ba602d-93c3-40e0-b92f-4350f95e6c94",
@@ -24097,7 +24112,10 @@
     "name": "Consulta Demo",
     "role": "consulta",
     "active": true,
-    "createdAt": "2026-10-26T00:54:36.770Z"
+    "createdAt": "2026-10-26T00:54:36.770Z",
+    "sedes": [
+     "OMNIA"
+    ]
    },
    {
     "id": "d199349c-a991-494b-b918-828ab6706877",
@@ -24105,7 +24123,10 @@
     "name": "Operador Demo",
     "role": "operador",
     "active": true,
-    "createdAt": "2026-10-26T00:54:36.770Z"
+    "createdAt": "2026-10-26T00:54:36.770Z",
+    "sedes": [
+     "OMNIA"
+    ]
    },
    {
     "id": "ac0233f7-e75c-4608-a744-c7bf4e35284e",
@@ -24113,7 +24134,10 @@
     "name": "Supervisor Demo",
     "role": "supervisor",
     "active": true,
-    "createdAt": "2026-10-26T00:54:36.770Z"
+    "createdAt": "2026-10-26T00:54:36.770Z",
+    "sedes": [
+     "OMNIA"
+    ]
    }
   ],
   "/auditoria?limit=200": [
@@ -26198,6 +26222,32 @@
      "reason": null
     }
    ]
-  }
+  },
+  "/sedes": [
+   {
+    "id": "OMNIA",
+    "name": "SEDE FRITOLAY OMNIA",
+    "active": true,
+    "sort": 1
+   },
+   {
+    "id": "SAN-JUAN",
+    "name": "SEDE FRITOLAY SAN JUAN",
+    "active": true,
+    "sort": 2
+   },
+   {
+    "id": "HILO",
+    "name": "SEDE HILO",
+    "active": true,
+    "sort": 3
+   },
+   {
+    "id": "Z11",
+    "name": "SEDE INTRANSIT Z11",
+    "active": true,
+    "sort": 4
+   }
+  ]
  }
 }

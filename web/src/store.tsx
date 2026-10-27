@@ -1,9 +1,10 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
-import { api, ApiError, setToken, setUnauthorizedHandler, syncStore } from './api';
+import { api, ApiError, getSede, setSede, setToken, setUnauthorizedHandler, syncStore } from './api';
 import { asset, cfg, ownLogin } from './module';
 import { signOut } from './sso';
 
-export interface Meta { user: { id: string; email: string; name: string; role: string; permissions: string[] }; demo: boolean; inicio: string; wmDiv: number; defaultMonth: string; today: string; areas: [string, string][]; summaryNames: Record<string, string>; lines: any[]; inventoryBaseDate: string | null; sede: string; authMode: 'local' | 'sso'; ssoUsers?: 'portal' | 'modulo'; portalUrl: string; module: { id: string; name: string; basePath: string } }
+export interface Sede { id: string; name: string }
+export interface Meta { user: { id: string; email: string; name: string; role: string; permissions: string[] }; demo: boolean; inicio: string; wmDiv: number; defaultMonth: string; today: string; areas: [string, string][]; summaryNames: Record<string, string>; lines: any[]; inventoryBaseDate: string | null; sede: Sede | null; sedes: Sede[]; authMode: 'local' | 'sso'; ssoUsers?: 'portal' | 'modulo'; portalUrl: string; module: { id: string; name: string; basePath: string } }
 interface Ctx {
   meta: Meta | null; can: (p: string) => boolean; month: string; setMonth: (m: string) => void; week: string; setWeek: (w: string) => void; refreshKey: number; refresh: () => void;
   toast: (msg: string, err?: boolean) => void; logout: () => void; reloadMeta: () => Promise<void>;
@@ -13,9 +14,11 @@ const C = createContext<Ctx>(null as any);
 export const useApp = () => useContext(C);
 export const useSync = () => useSyncExternalStore(syncStore.subscribe, syncStore.get);
 
-const DENIED = ['MODULO_NO_ASIGNADO', 'ROL_INVALIDO', 'USUARIO_INACTIVO'];
+const DENIED = ['MODULO_NO_ASIGNADO', 'ROL_INVALIDO', 'USUARIO_INACTIVO', 'SIN_SEDE'];
 function Denied({ title, message }: { title: string; message: string }) {
-  return <div className="login-wrap"><div className="login"><img src={asset('logo.png')} alt="In Transit" style={{ height: 44, marginBottom: 16 }} /><h1>{title}</h1><p className="muted" style={{ margin: '8px 0 16px' }}>{message}</p>{ownLogin ? <button className="btn btn-primary" onClick={() => void signOut()}>Entrar con otra cuenta</button> : <a className="btn btn-primary" href={cfg.portalUrl}>Volver al portal</a>}</div></div>;
+  return <div className="auth-form denied"><div className="auth-box"><img className="auth-brand" src={asset('logo-color.png')} alt="In Transit · innovative outsourcing" width={280} height={95} /><h2>{title}</h2><p className="muted" style={{ margin: '8px 0 0' }}>{message}</p>{ownLogin ? <button className="btn btn-primary auth-submit" onClick={() => void signOut()}>Entrar con otra cuenta</button>
+    : cfg.authMode === 'sso' ? <a className="btn btn-primary auth-submit" href={cfg.portalUrl}>Volver al portal</a>
+    : <button className="btn btn-primary auth-submit" onClick={() => { setToken(null); location.reload(); }}>Entrar con otra cuenta</button>}</div></div>;
 }
 
 export function AppProvider({ children, onLogout }: { children: ReactNode; onLogout: () => boolean | void }) {
@@ -31,7 +34,12 @@ export function AppProvider({ children, onLogout }: { children: ReactNode; onLog
   const toast = useCallback((msg: string, err?: boolean) => { const n = ++id.current; setToasts((t) => [...t, { id: n, msg, err }]); setTimeout(() => setToasts((t) => t.filter((x) => x.id !== n)), err ? 8000 : 4000); }, []);
   const logout = useCallback(() => { if (cfg.authMode === 'sso') { void signOut(); return; } api.post('/auth/logout').catch(() => {}); setToken(null); onLogout(); }, [onLogout]);
   const leave = useCallback(() => { if (onLogout() === false) setDenied({ title: 'No se pudo validar tu sesión', message: 'Vuelve al portal e inicia sesión de nuevo. Si el problema continúa, avisa a un administrador.' }); }, [onLogout]);
-  const reloadMeta = useCallback(async () => { const m = await api.get<Meta>('/meta'); setMeta(m); setMonthRaw((cur) => cur || m.defaultMonth); }, []);
+  const reloadMeta = useCallback(async () => {
+    const m = await api.get<Meta>('/meta');
+    if (!m.sede) { setDenied({ title: 'Sin sede asignada', message: 'Tu usuario no tiene una sede asignada en Operaciones. Pide a un administrador que te asigne una en Ajustes › Usuarios.' }); return; }
+    if (getSede() !== m.sede.id) setSede(m.sede.id);   // se fija la sede con la que se trabaja: las escrituras siguientes van a esa
+    setMeta(m); setMonthRaw((cur) => cur || m.defaultMonth);
+  }, []);
   useEffect(() => {
     setUnauthorizedHandler(() => { setToken(null); leave(); });
     reloadMeta().catch((e) => { if (e instanceof ApiError && e.status === 403 && DENIED.includes(e.code)) setDenied({ title: e.code === 'MODULO_NO_ASIGNADO' ? 'Módulo no asignado' : 'Acceso no disponible', message: e.message }); else if (!(e instanceof ApiError && e.status === 401)) leave(); });

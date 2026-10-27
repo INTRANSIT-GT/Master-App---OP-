@@ -26,8 +26,8 @@ export function resolvePeriod(eng: Awaited<ReturnType<typeof getEngine>>, q: { s
 }
 const monthKeyOfMonday = (mon: number) => { const d = new Date((mon + 3) * 864e5); return d.getUTCFullYear() * 12 + d.getUTCMonth(); };   // el mes de la semana es el de su jueves
 
-export async function cobro(q: { semana?: string; mes?: string; clientId?: string }) {
-  const eng = await getEngine(), { p, label, tipo } = resolvePeriod(eng, q), s = iso(p.s), e = iso(p.e);
+export async function cobro(q: { semana?: string; mes?: string; clientId?: string }, sede: string) {
+  const eng = await getEngine(sede), { p, label, tipo } = resolvePeriod(eng, q), s = iso(p.s), e = iso(p.e);
   const clients = (await pool.query('SELECT id, code, name FROM clients WHERE active ORDER BY sort')).rows;
   const projects = (await pool.query('SELECT id, client_id, code, name, um, kinds FROM projects WHERE active ORDER BY sort')).rows;
   const rows: CobroRow[] = [];
@@ -50,7 +50,7 @@ export async function cobro(q: { semana?: string; mes?: string; clientId?: strin
         sum(CASE WHEN br.rate IS NOT NULL THEN r.boxes * br.rate END) AS amount, count(*) FILTER (WHERE br.rate IS NULL)::int AS sin_tarifa, max(br.unit) AS unit
       FROM production_records r JOIN projects pr ON pr.id = r.project_id
       LEFT JOIN billing_rates br ON br.project_id = pr.id AND r.record_date BETWEEN br.valid_from AND coalesce(br.valid_to, 'infinity'::date)
-      WHERE r.kind = 'gen' AND r.status = 'confirmado' AND r.record_date BETWEEN $1 AND $2 GROUP BY pr.id, pr.client_id`, [s, e])).rows;
+      WHERE r.sede_id = $3 AND r.kind = 'gen' AND r.status = 'confirmado' AND r.record_date BETWEEN $1 AND $2 GROUP BY pr.id, pr.client_id`, [s, e, sede])).rows;
   for (const x of g) {
     const pr = projects.find((y) => y.id === x.project_id), cl = clients.find((y) => y.id === x.client_id); if (!pr || !cl) continue;
     rows.push({ client: cl.name, clientId: cl.id, project: pr.name, projectId: pr.id, detail: `${x.n} registro(s)`, unit: (x.unit ?? pr.um).toLowerCase(), qty: x.qty, billableQty: x.qty,
@@ -65,14 +65,15 @@ export async function cobro(q: { semana?: string; mes?: string; clientId?: strin
     nota: 'Importes en quetzales. Las filas con «sin tarifa» no suman al total hasta definir la tarifa. Resumen y cobro usan los mismos registros confirmados.' };
 }
 
-export async function excelCobro(q: Parameters<typeof cobro>[0]): Promise<{ buf: Buffer; name: string }> {
-  const d = await cobro(q), wb = new ExcelJS.Workbook(); wb.creator = 'In Transit Operaciones';
+export async function excelCobro(q: Parameters<typeof cobro>[0], sede: string): Promise<{ buf: Buffer; name: string }> {
+  const d = await cobro(q, sede), wb = new ExcelJS.Workbook(); wb.creator = 'In Transit Operaciones';
   const settings = (await pool.query(`SELECT value FROM settings WHERE key = 'demo'`)).rows[0]?.value === true;
   const hdr = (r: ExcelJS.Row) => { r.font = { bold: true, color: { argb: 'FFFFFFFF' } }; r.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1D2A3A' } }; };
   const ws = wb.addWorksheet('COBRO');
   ws.addRow([`REPORTE DE COBRO · ${d.label.toUpperCase()}`]).font = { bold: true, size: 13 };
   if (settings) ws.addRow(['DATOS DE DEMOSTRACIÓN: no usar para facturar']).font = { bold: true, color: { argb: 'FFC23B22' } };
-  ws.addRow([`Del ${d.desde} al ${d.hasta}`]); ws.addRow([]);
+  const sedeName = (await pool.query('SELECT name FROM sedes WHERE id = $1', [sede])).rows[0]?.name ?? sede;
+  ws.addRow([`${sedeName} · del ${d.desde} al ${d.hasta}`]); ws.addRow([]);
   for (const c of d.clients) {
     ws.addRow([c.name]).font = { bold: true, size: 12 };
     const h = ws.addRow(['Proyecto', 'Detalle', 'Unidad', 'Cantidad', 'Cantidad cobrable', 'Tarifa Q', 'Importe Q', 'Observación']); hdr(h);
@@ -83,11 +84,11 @@ export async function excelCobro(q: Parameters<typeof cobro>[0]): Promise<{ buf:
   ws.addRow([]); ws.addRow([d.nota]).font = { italic: true, size: 9 };
   [26, 36, 16, 14, 18, 14, 16, 40].forEach((w, i) => (ws.getColumn(i + 1).width = w));
   ws.getColumn(7).numFmt = '#,##0.00'; ws.getColumn(4).numFmt = '#,##0.##'; ws.getColumn(5).numFmt = '#,##0.##';
-  return { buf: Buffer.from(await wb.xlsx.writeBuffer()), name: `Cobro_${d.tipo === 'semana' ? d.desde : d.desde.slice(0, 7)}.xlsx` };
+  return { buf: Buffer.from(await wb.xlsx.writeBuffer()), name: `Cobro_${sede}_${d.tipo === 'semana' ? d.desde : d.desde.slice(0, 7)}.xlsx` };
 }
 
-export async function listRates() {
-  const eng = await getEngine();
+export async function listRates(sede: string) {
+  const eng = await getEngine(sede);
   const proj = (await pool.query(`SELECT p.id, p.code, p.name, p.um, p.kinds, c.id AS client_id, c.name AS client FROM projects p JOIN clients c ON c.id = p.client_id WHERE p.active ORDER BY c.sort, p.sort`)).rows;
   const rates = (await pool.query('SELECT id, project_id AS "projectId", rate, unit, valid_from AS "validFrom", valid_to AS "validTo", note FROM billing_rates ORDER BY valid_from DESC')).rows;
   const lines = eng.d.lines.filter((l) => LINE_PROJECT[l.key]).map((l) => ({ key: l.key, name: l.name, project: LINE_PROJECT[l.key], rate: eng.rateOf(l.key, iso(dn(new Date().toISOString().slice(0, 10))!)) }));

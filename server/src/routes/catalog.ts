@@ -118,7 +118,7 @@ catalogRouter.delete('/catalogo/materiales/:id', need('catalogo.editar'), async 
 });
 
 catalogRouter.put('/ajustes', need('ajustes.editar'), async (req, res) => {
-  const b = parse(z.object({ sede: z.string().trim().min(2).max(60).optional(), inicio: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(), wmDiv: z.coerce.number().positive().optional(), crkDefaultUnitsPerBox: z.coerce.number().positive().optional() }).strict(), req.body);
+  const b = parse(z.object({ inicio: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(), wmDiv: z.coerce.number().positive().optional(), crkDefaultUnitsPerBox: z.coerce.number().positive().optional() }).strict(), req.body);
   res.json(await tx(async (c) => {
     const before = await getSettings(c);
     for (const [k, v] of Object.entries(b)) await c.query('INSERT INTO settings (key, value, updated_by) VALUES ($1,$2,$3) ON CONFLICT (key) DO UPDATE SET value = $2, updated_by = $3, updated_at = now()', [k, JSON.stringify(v), req.user!.id]);

@@ -31,10 +31,11 @@ Navegador ──(archivos)──▶ GitHub Pages: app/ (build «supabase» de we
 cd web && npm run build:supabase
 # servidor → Edge Function (supabase CLI con sesión: supabase login)
 node scripts/supabase-funcion.mjs --desplegar
-# esquema nuevo (db/migrations) → hoy no hay migrador automático: aplicar el .sql con
-#   supabase db query --linked --project-ref <ref> -f <archivo>   (anteponiendo SET search_path TO operaciones, extensions;)
-#   y registrar el nombre en operaciones.schema_migrations
+# esquema nuevo (db/migrations) → aplica en orden las que operaciones.schema_migrations no tiene, cada una en su transacción
+node scripts/supabase-base.mjs migrar
 ```
+
+Orden al publicar un cambio con migración: `migrar`, luego la función y al final la web (mientras tanto la función anterior puede fallar al escribir).
 
 `scripts/supabase-base.mjs esquema | datos | rehacer` crea el esquema desde `db/migrations` y copia los datos de la base local `omnia` (`pg_dump`). `rehacer` **borra** el esquema `operaciones` con todo lo capturado.
 

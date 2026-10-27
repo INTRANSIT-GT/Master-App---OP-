@@ -7,7 +7,7 @@ import { HttpError } from './http.js';
 import { can, type Perm, type Role } from './permissions.js';
 import { verifySupabaseToken, type SsoUser } from './sso.js';
 
-export interface AuthUser { id: string; email: string; name: string; role: Role }
+export interface AuthUser { id: string; email: string; name: string; role: Role; sede?: string }   // sede: la fija sede.ts en cada petición
 declare global { namespace Express { interface Request { user?: AuthUser } } }
 
 export const signToken = (u: { id: string; token_version: number }) => jwt.sign({ sub: u.id, tv: u.token_version }, config.jwtSecret, { expiresIn: `${config.jwtTtlHours}h` });

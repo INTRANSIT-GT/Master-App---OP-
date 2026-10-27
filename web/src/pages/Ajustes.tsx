@@ -145,21 +145,39 @@ function Periodos() {
 function Usuarios() {
   const { toast, meta } = useApp();
   const { data, err, loading, reload } = useLoad<any[]>(() => api.get('/usuarios'), []);
+  const { data: sedes, reload: reloadSedes } = useLoad<{ id: string; name: string; active: boolean }[]>(() => api.get('/sedes'), []);
   const ROLES = [['administrador', 'Administrador'], ['comercial', 'Comercial'], ['supervisor', 'Supervisor'], ['operador', 'Operador'], ['consulta', 'Consulta']];
   const patch = async (u: any, b: any) => { try { await api.patch('/usuarios/' + u.id, b); toast('Usuario actualizado.'); reload(); } catch (e: any) { toast(e.message, true); } };
+  const toggleSede = (u: any, id: string, on: boolean) => patch(u, { sedes: on ? [...u.sedes, id] : u.sedes.filter((x: string) => x !== id) });
   // sso + modulo: Operaciones vive en Supabase y da acceso a cuentas de Supabase (las mismas de Transportes)
   const dir = meta?.authMode === 'sso' && meta?.ssoUsers === 'modulo', ext = meta?.authMode === 'sso' && !dir;
+  const activas = (sedes ?? []).filter((x) => x.active);
   return (
     <>
-      {ext && <div className="note">Los usuarios, los módulos asignados y los roles se gestionan en la app principal (Supabase). Aquí solo puedes suspender o reactivar el acceso a Operaciones.</div>}
+      {ext && <div className="note">Los usuarios, los módulos asignados y los roles se gestionan en la app principal (Supabase). Aquí puedes suspender o reactivar el acceso a Operaciones y asignar las sedes de cada persona.</div>}
       {dir && <div className="note">Las cuentas son de Supabase, las mismas de Transportes. Si el correo ya tiene cuenta, se le da acceso a Operaciones y su contraseña no cambia; si no tiene, se crea con la contraseña inicial que escribas.</div>}
-      {!ext && <Card title={dir ? 'Dar acceso a Operaciones' : 'Nuevo usuario'} sub="Contraseña de al menos 10 caracteres con letras y números"><RecordForm submitLabel={dir ? 'Dar acceso' : 'Crear usuario'} initial={{ role: 'operador' }} fields={[{ k: 'email', label: 'Correo', type: 'text', required: true }, { k: 'name', label: 'Nombre', type: 'text', required: true }, { k: 'role', label: 'Rol', type: 'select', required: true, options: ROLES as [string, string][] }, { k: 'password', label: dir ? 'Contraseña inicial (solo si la cuenta es nueva)' : 'Contraseña inicial', type: 'text', required: !dir }]}
-        onSubmit={async (v) => { try { const r = await api.post('/usuarios', v); toast(r.existente ? 'La cuenta ya existía: ahora tiene acceso a Operaciones.' : 'Usuario creado.'); reload(); } catch (e: any) { toast(e.message, true); } }} /></Card>}
-      <Card title="Usuarios"><Loading err={err} loading={loading && !data} />
-        <table className="tbl"><thead><tr><th>Nombre</th><th>Correo</th><th>Rol</th><th>Activo</th></tr></thead><tbody>{(data ?? []).map((u) => <tr key={u.id}><td>{u.name}</td><td>{u.email}</td>
+      {!ext && <Card title={dir ? 'Dar acceso a Operaciones' : 'Nuevo usuario'} sub="Contraseña de al menos 10 caracteres con letras y números. Otras sedes se agregan después en la lista."><RecordForm submitLabel={dir ? 'Dar acceso' : 'Crear usuario'} initial={{ role: 'operador', sede: meta?.sede?.id }} fields={[{ k: 'email', label: 'Correo', type: 'text', required: true }, { k: 'name', label: 'Nombre', type: 'text', required: true }, { k: 'role', label: 'Rol', type: 'select', required: true, options: ROLES as [string, string][] }, { k: 'sede', label: 'Sede', type: 'select', required: true, options: activas.map((x) => [x.id, x.name] as [string, string]) }, { k: 'password', label: dir ? 'Contraseña inicial (solo si la cuenta es nueva)' : 'Contraseña inicial', type: 'text', required: !dir }]}
+        onSubmit={async ({ sede, ...v }) => { try { const r = await api.post('/usuarios', { ...v, sedes: [sede] }); toast(r.existente ? 'La cuenta ya existía: ahora tiene acceso a Operaciones.' : 'Usuario creado.'); reload(); } catch (e: any) { toast(e.message, true); } }} /></Card>}
+      <Card title="Usuarios" sub="El administrador entra en todas las sedes; los demás, solo en las marcadas"><Loading err={err} loading={loading && !data} />
+        <div className="tbl-wrap"><table className="tbl"><thead><tr><th>Nombre</th><th>Correo</th><th>Rol</th><th>Sedes</th><th>Activo</th></tr></thead><tbody>{(data ?? []).map((u) => <tr key={u.id}><td>{u.name}</td><td>{u.email}</td>
           <td><select aria-label={'Rol de ' + u.name} value={u.role} disabled={ext || u.id === meta?.user.id} onChange={(e) => patch(u, { role: e.target.value })}>{ROLES.map(([v, n]) => <option key={v} value={v}>{n}</option>)}</select></td>
-          <td><label className="chk"><input type="checkbox" checked={u.active} disabled={u.id === meta?.user.id} onChange={(e) => patch(u, { active: e.target.checked })} /> {u.active ? 'Activo' : 'Inactivo'}</label></td></tr>)}</tbody></table></Card>
+          <td>{u.role === 'administrador' ? <span className="muted">Todas</span>
+            : <div className="sedes-chk">{activas.map((x) => <label key={x.id} className="chk"><input type="checkbox" checked={u.sedes?.includes(x.id)} onChange={(e) => toggleSede(u, x.id, e.target.checked)} /> {x.name}</label>)}</div>}</td>
+          <td><label className="chk"><input type="checkbox" checked={u.active} disabled={u.id === meta?.user.id} onChange={(e) => patch(u, { active: e.target.checked })} /> {u.active ? 'Activo' : 'Inactivo'}</label></td></tr>)}</tbody></table></div></Card>
+      <Sedes sedes={sedes} reload={() => { reloadSedes(); reload(); }} />
     </>
+  );
+}
+
+function Sedes({ sedes, reload }: { sedes: { id: string; name: string; active: boolean }[] | null; reload: () => void }) {
+  const { toast, reloadMeta } = useApp();
+  const save = async (fn: () => Promise<unknown>, ok: string) => { try { await fn(); toast(ok); reload(); void reloadMeta(); } catch (e: any) { toast(e.message, true); } };
+  return (
+    <Card title="Sedes" sub="Cada sede tiene sus propios registros, periodos e inventario; los catálogos y estándares son comunes">
+      <RecordForm submitLabel="Agregar sede" initial={{}} fields={[{ k: 'name', label: 'Nombre de la sede', type: 'text', required: true, hint: 'Por ejemplo: SEDE FRITOLAY OMNIA' }]} onSubmit={(v) => save(() => api.post('/sedes', v), 'Sede agregada.')} />
+      <table className="tbl" style={{ marginTop: 12 }}><thead><tr><th>Sede</th><th>Código</th><th>Activa</th></tr></thead><tbody>{(sedes ?? []).map((x) => <tr key={x.id}><td>{x.name}</td><td>{x.id}</td>
+        <td><label className="chk"><input type="checkbox" checked={x.active} onChange={(e) => save(() => api.patch('/sedes/' + x.id, { active: e.target.checked }), e.target.checked ? 'Sede activada.' : 'Sede desactivada: nadie entra a ella, sus datos se conservan.')} /> {x.active ? 'Activa' : 'Inactiva'}</label></td></tr>)}</tbody></table>
+    </Card>
   );
 }
 

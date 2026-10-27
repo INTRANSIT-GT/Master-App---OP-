@@ -13,6 +13,6 @@ importRouter.post('/importar/vista-previa', need('importar'), upload.single('arc
   res.json(await previewImport(req.user!, String(req.body.tipo) as ImportType, req.file.originalname, req.file.buffer));
 });
 importRouter.post('/importar/:id/aplicar', need('importar'), async (req, res) => res.json(await applyImport(req.user!, req.params.id as string)));
-importRouter.get('/importar', need('importar'), async (_req, res) => {
-  res.json((await pool.query(`SELECT id, source, file_name AS "fileName", status, stats, created_at AS "createdAt", applied_at AS "appliedAt" FROM import_batches WHERE source <> 'demo' ORDER BY created_at DESC LIMIT 50`)).rows);
+importRouter.get('/importar', need('importar'), async (req, res) => {
+  res.json((await pool.query(`SELECT id, source, file_name AS "fileName", status, stats, created_at AS "createdAt", applied_at AS "appliedAt" FROM import_batches WHERE sede_id = $1 AND source <> 'demo' ORDER BY created_at DESC LIMIT 50`, [req.sede])).rows);
 });

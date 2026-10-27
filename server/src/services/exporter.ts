@@ -2,30 +2,31 @@ import ExcelJS from 'exceljs';
 import PDFDocument from 'pdfkit';
 import { pool } from '../db.js';
 import { AREAS, RES_NAME } from '../engine/types.js';
+import type { Sede } from '../sede.js';
 import { monthReport } from './reports.js';
 
 const AN = Object.fromEntries(AREAS);
 const ND = 'N/D';
 
-async function monthData(k: number) {
-  const rep: any = await monthReport(k), R = rep.results, s = R.period.start, e = R.period.end;
+async function monthData(sede: string, k: number) {
+  const rep: any = await monthReport(sede, k), R = rep.results, s = R.period.start, e = R.period.end;
   const [reqs, cap] = await Promise.all([
-    pool.query(`SELECT request_date AS date, area, oc, amount, supplier, qty, mat_type, mat_ref, notes FROM requirements WHERE status='confirmado' AND request_date BETWEEN $1 AND $2 ORDER BY request_date`, [s, e]),
+    pool.query(`SELECT request_date AS date, area, oc, amount, supplier, qty, mat_type, mat_ref, notes FROM requirements WHERE sede_id = $3 AND status='confirmado' AND request_date BETWEEN $1 AND $2 ORDER BY request_date`, [s, e, sede]),
     pool.query(`SELECT kind, record_date AS date, ref_doc, presentation, label_id, product_name, boxes, units, review_units, bad_boxes, process_status, notes FROM production_records
-                WHERE status='confirmado' AND kind IN ('etq','noc','qua','sun','crk') AND record_date BETWEEN $1 AND $2 ORDER BY record_date, kind`, [s, e]),
+                WHERE sede_id = $3 AND status='confirmado' AND kind IN ('etq','noc','qua','sun','crk') AND record_date BETWEEN $1 AND $2 ORDER BY record_date, kind`, [s, e, sede]),
   ]);
   return { rep, R, S: rep.resumen, inv: rep.inventory, reqs: reqs.rows, cap: cap.rows };
 }
 
-export async function excelReport(k: number): Promise<Buffer> {
-  const { rep, R, S, inv, reqs, cap } = await monthData(k);
-  const wb = new ExcelJS.Workbook(); wb.creator = 'Resultados Omnia'; wb.created = new Date();
+export async function excelReport(sede: Sede, k: number): Promise<Buffer> {
+  const { rep, R, S, inv, reqs, cap } = await monthData(sede.id, k);
+  const wb = new ExcelJS.Workbook(); wb.creator = `Resultados ${sede.name}`; wb.created = new Date();
   const head = (ws: ExcelJS.Worksheet, row: number) => { const r = ws.getRow(row); r.font = { bold: true, color: { argb: 'FFFFFFFF' } }; r.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1D2A3A' } }; r.alignment = { vertical: 'middle', wrapText: true }; };
   const note = (ws: ExcelJS.Worksheet, t: string) => { ws.addRow([t]).font = { bold: true, size: 13 }; if (rep.frozen) ws.addRow(['Periodo cerrado: cifras congeladas al cierre']).font = { italic: true }; ws.addRow([]); };
 
   // RESULTADOS
   let ws = wb.addWorksheet('RESULTADOS');
-  note(ws, `RESULTADOS ${R.period.title.toUpperCase()}`);
+  note(ws, `RESULTADOS ${R.period.title.toUpperCase()} · ${sede.name.toUpperCase()}`);
   const days: string[] = []; for (const w of R.period.weeks) for (let i = 0; i < 7; i++) days.push(new Date(Date.parse(w.monday) + i * 864e5).toISOString().slice(0, 10));
   const h0 = ws.rowCount + 1;
   ws.addRow(['Línea', 'U/M', 'TT', ...days.map((d) => d.slice(8, 10) + '/' + d.slice(5, 7)), ...R.period.weeks.flatMap((w: any) => [`HH sem ${w.week}`, `Producido sem ${w.week}`]), 'Cajas/U mes', 'Tarimas', 'HH mes']); head(ws, h0);
@@ -74,14 +75,14 @@ const money = (v: number) => (v < 0 ? '-Q' : 'Q') + Math.abs(v).toLocaleString('
 const n1 = (v: number) => v.toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 const pct = (v: number | null) => (v == null ? ND : (v * 100).toFixed(1) + '%');
 
-export async function pdfReport(k: number): Promise<Buffer> {
-  const { rep, R, S, inv } = await monthData(k);
-  const doc = new PDFDocument({ size: 'A4', layout: 'landscape', margin: 36, info: { Title: `Resultados Omnia ${R.period.title}` } });
+export async function pdfReport(sede: Sede, k: number): Promise<Buffer> {
+  const { rep, R, S, inv } = await monthData(sede.id, k);
+  const doc = new PDFDocument({ size: 'A4', layout: 'landscape', margin: 36, info: { Title: `Resultados ${sede.name} ${R.period.title}` } });
   const chunks: Buffer[] = []; doc.on('data', (c) => chunks.push(c));
   const done = new Promise<Buffer>((res) => doc.on('end', () => res(Buffer.concat(chunks))));
   const W = doc.page.width - 72, COPPER = '#B8692E', INK = '#18212C', GREY = '#7A8697';
   doc.rect(0, 0, doc.page.width, 58).fill('#1D2A3A'); doc.rect(0, 58, doc.page.width, 4).fill(COPPER);
-  doc.fillColor('#EEF2F7').font('Helvetica-Bold').fontSize(20).text('Resultados Omnia', 36, 16).font('Helvetica').fontSize(10).fillColor('#A9B7C8').text(`${R.period.title} · semanas ${R.period.weeks[0]?.week}–${R.period.weeks.at(-1)?.week} · ${R.period.start} al ${R.period.end}${rep.frozen ? ' · periodo cerrado (cifras congeladas)' : ''}`, 36, 40);
+  doc.fillColor('#EEF2F7').font('Helvetica-Bold').fontSize(20).text(`Resultados · ${sede.name}`, 36, 16).font('Helvetica').fontSize(10).fillColor('#A9B7C8').text(`${R.period.title} · semanas ${R.period.weeks[0]?.week}–${R.period.weeks.at(-1)?.week} · ${R.period.start} al ${R.period.end}${rep.frozen ? ' · periodo cerrado (cifras congeladas)' : ''}`, 36, 40);
   let y = 76;
   const kpis: [string, string][] = [['HH reportadas', n1(R.HH)], ['Asistencia (h pagadas)', R.ASIS ? n1(R.ASIS) : ND], ['Eficiencia', pct(R.eff.month)], ['Costo Q', money(S.T.cost)], ['Costo neto', money(S.T.net)], ['Margen por HH', S.T.mg == null ? ND : money(S.T.mg)]];
   const kw = W / kpis.length;
@@ -131,8 +132,8 @@ const fmtD = (d: any) => { const s = d instanceof Date ? d.toISOString() : Strin
 const EMPRESA = { name: 'IN TRANSIT DE CENTROAMERICA, S. A.', l1: '20 Calle 7-42 zona 11, Colonia Mariscal', l2: 'Nit: 37364677', l3: 'PBX: +502 2318 -7900' };
 const cur = (c: string) => (c === 'USD' ? '$' : 'Q');
 
-export async function excelPO(id: string): Promise<{ buf: Buffer; name: string }> {
-  const po: any = await getPO(id);
+export async function excelPO(id: string, sede: string): Promise<{ buf: Buffer; name: string }> {
+  const po: any = await getPO(id, sede);
   const wb = new ExcelJS.Workbook(); wb.creator = 'In Transit Operaciones';
   const ws = wb.addWorksheet('OC', { pageSetup: { orientation: 'portrait', fitToPage: true, fitToWidth: 1, fitToHeight: 0, paperSize: 9 } });
   ws.columns = [{ width: 18 }, { width: 12 }, { width: 46 }, { width: 16 }, { width: 16 }, { width: 22 }];
@@ -168,8 +169,8 @@ export async function excelPO(id: string): Promise<{ buf: Buffer; name: string }
   return { buf: Buffer.from(await wb.xlsx.writeBuffer()), name: `${po.number}.xlsx` };
 }
 
-export async function pdfPO(id: string): Promise<{ buf: Buffer; name: string }> {
-  const po: any = await getPO(id);
+export async function pdfPO(id: string, sede: string): Promise<{ buf: Buffer; name: string }> {
+  const po: any = await getPO(id, sede);
   const doc = new PDFDocument({ size: 'LETTER', margin: 36 }), chunks: Buffer[] = [];
   doc.on('data', (d) => chunks.push(d));
   const done = new Promise<Buffer>((res) => doc.on('end', () => res(Buffer.concat(chunks))));

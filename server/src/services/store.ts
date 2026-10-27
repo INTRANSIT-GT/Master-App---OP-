@@ -10,23 +10,24 @@ export async function getSettings(q: Q): Promise<Record<string, any>> {
   return Object.fromEntries(r.rows.map((x) => [x.key, x.value]));
 }
 
-export async function loadEngineData(q: Q): Promise<EngineData> {
+/** Datos del motor de una sede: los registros y periodos son suyos; catálogos, estándares y ajustes, comunes. */
+export async function loadEngineData(q: Q, sede: string): Promise<EngineData> {
   const [lines, products, standards, items, bag, counts, settings, prod, hours, att, reqs, scrap, periods, supply] = await Promise.all([
     q.query('SELECT * FROM process_lines ORDER BY sort'),
     q.query('SELECT * FROM products WHERE active ORDER BY sort, sap'),
     q.query('SELECT * FROM standards ORDER BY valid_from'),
     q.query('SELECT * FROM inv_items ORDER BY sort, id'),
     q.query('SELECT * FROM bag_usage'),
-    q.query('SELECT DISTINCT ON (item_id) item_id, count_date, qty FROM inventory_counts ORDER BY item_id, count_date DESC'),
+    q.query('SELECT DISTINCT ON (item_id) item_id, count_date, qty FROM inventory_counts WHERE sede_id = $1 ORDER BY item_id, count_date DESC', [sede]),
     getSettings(q),
     q.query(`SELECT kind, record_date, sap, product_name, boxes, units, units_per_box, billable_boxes, labels_used, label_id, review_units, bad_boxes, container_type
-             FROM production_records WHERE status = 'confirmado' AND kind <> 'gen'`),
-    q.query(`SELECT kind, record_date, hours_day, hours_night FROM hours_records WHERE status = 'confirmado' AND kind = 'imp'`),
-    q.query('SELECT week_monday, paid_hours FROM attendance'),
-    q.query(`SELECT request_date, area, amount, mat_type, mat_ref, qty FROM requirements WHERE status = 'confirmado'`),
-    q.query(`SELECT scrap_date, item_id, units FROM inventory_scrap WHERE status = 'confirmado'`),
-    q.query('SELECT month_key, week_from, week_to FROM periods WHERE week_from IS NOT NULL AND week_to IS NOT NULL'),
-    q.query(`SELECT move_date, item_id, kind, qty, area FROM supply_movements WHERE status = 'confirmado'`),
+             FROM production_records WHERE sede_id = $1 AND status = 'confirmado' AND kind <> 'gen'`, [sede]),
+    q.query(`SELECT kind, record_date, hours_day, hours_night FROM hours_records WHERE sede_id = $1 AND status = 'confirmado' AND kind = 'imp'`, [sede]),
+    q.query('SELECT week_monday, paid_hours FROM attendance WHERE sede_id = $1', [sede]),
+    q.query(`SELECT request_date, area, amount, mat_type, mat_ref, qty FROM requirements WHERE sede_id = $1 AND status = 'confirmado'`, [sede]),
+    q.query(`SELECT scrap_date, item_id, units FROM inventory_scrap WHERE sede_id = $1 AND status = 'confirmado'`, [sede]),
+    q.query('SELECT month_key, week_from, week_to FROM periods WHERE sede_id = $1 AND week_from IS NOT NULL AND week_to IS NOT NULL', [sede]),
+    q.query(`SELECT move_date, item_id, kind, qty, area FROM supply_movements WHERE sede_id = $1 AND status = 'confirmado'`, [sede]),
   ]);
   const st: EngineSettings = {
     inicio: settings.inicio ?? '2026-10-05', wmDiv: settings.wmDiv ?? 19, crkDefaultUnitsPerBox: settings.crkDefaultUnitsPerBox ?? 64,
@@ -52,38 +53,38 @@ export async function loadEngineData(q: Q): Promise<EngineData> {
   };
 }
 
-export interface InsertMeta { userId?: string | null; batchId?: string | null; isDemo?: boolean; status?: 'borrador' | 'confirmado' }
+export interface InsertMeta { sede: string; userId?: string | null; batchId?: string | null; isDemo?: boolean; status?: 'borrador' | 'confirmado' }
 
 /** Inserta registros de producción ignorando los que ya existen (misma llave natural). Devuelve insertados y omitidos. */
 export async function defaultProjectByKind(q: Q): Promise<Record<string, string>> {
   const r = await q.query(`SELECT p.id, p.kinds FROM projects p JOIN clients c ON c.id = p.client_id WHERE c.code = 'FRITOLAY'`);
   const o: Record<string, string> = {}; for (const p of r.rows) for (const k of p.kinds) o[k] = p.id; return o;
 }
-export async function insertProdRows(q: Q, rows: ProdRow[], m: InsertMeta = {}) {
+export async function insertProdRows(q: Q, rows: ProdRow[], m: InsertMeta) {
   let inserted = 0, skipped = 0; const ids: string[] = [], proj = await defaultProjectByKind(q);
   for (const r of rows) {
     const res = await q.query(
       `INSERT INTO production_records (kind, record_date, ref_doc, sap, product_name, boxes, units, units_per_box, billable_boxes, labels_used, label_id, review_units, bad_boxes,
-         container_type, presentation, process_status, notes, data, source, import_batch_id, source_key, is_demo, status, created_by, updated_by, project_id)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$24,$25)
-       ON CONFLICT (kind, source_key) WHERE source_key IS NOT NULL AND status <> 'anulado' DO NOTHING RETURNING id`,
+         container_type, presentation, process_status, notes, data, source, import_batch_id, source_key, is_demo, status, created_by, updated_by, project_id, sede_id)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$24,$25,$26)
+       ON CONFLICT (sede_id, kind, source_key) WHERE source_key IS NOT NULL AND status <> 'anulado' DO NOTHING RETURNING id`,
       [r.kind, r.date, r.refDoc ?? null, r.sap ?? null, r.productName ?? null, r.boxes, r.units, r.unitsPerBox ?? null, r.billableBoxes ?? null, r.labelsUsed ?? null, r.labelId ?? null,
         r.reviewUnits, r.badBoxes, r.containerType ?? null, r.presentation ?? null, r.processStatus ?? null, r.notes ?? null, JSON.stringify(r.data ?? {}), r.source, m.batchId ?? null, r.sourceKey,
-        m.isDemo ?? false, m.status ?? 'confirmado', m.userId ?? null, proj[r.kind] ?? null]);
+        m.isDemo ?? false, m.status ?? 'confirmado', m.userId ?? null, proj[r.kind] ?? null, m.sede]);
     if (res.rowCount) { inserted++; ids.push(res.rows[0].id); } else skipped++;
   }
   return { inserted, skipped, ids };
 }
 
-export async function insertHoursRows(q: Q, rows: HoursRow[], m: InsertMeta = {}) {
+export async function insertHoursRows(q: Q, rows: HoursRow[], m: InsertMeta) {
   let inserted = 0, skipped = 0; const ids: string[] = [];
   for (const r of rows) {
     const res = await q.query(
-      `INSERT INTO hours_records (kind, record_date, egress_no, area, activity, worker_name, hours_day, hours_night, notes, source, import_batch_id, source_key, is_demo, status, created_by, updated_by)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$15)
-       ON CONFLICT (kind, source_key) WHERE source_key IS NOT NULL AND status <> 'anulado' DO NOTHING RETURNING id`,
+      `INSERT INTO hours_records (kind, record_date, egress_no, area, activity, worker_name, hours_day, hours_night, notes, source, import_batch_id, source_key, is_demo, status, created_by, updated_by, sede_id)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$15,$16)
+       ON CONFLICT (sede_id, kind, source_key) WHERE source_key IS NOT NULL AND status <> 'anulado' DO NOTHING RETURNING id`,
       [r.kind, r.date, r.egressNo ?? null, r.area ?? null, r.activity ?? null, r.workerName ?? null, r.hoursDay, r.hoursNight, r.notes ?? null, r.source, m.batchId ?? null, r.sourceKey,
-        m.isDemo ?? false, m.status ?? 'confirmado', m.userId ?? null]);
+        m.isDemo ?? false, m.status ?? 'confirmado', m.userId ?? null, m.sede]);
     if (res.rowCount) { inserted++; ids.push(res.rows[0].id); } else skipped++;
   }
   return { inserted, skipped, ids };

@@ -2,7 +2,7 @@
 
 Aplicación web (módulo **Operaciones**) para registrar y controlar la operación de producción (maquila, etiquetado, descargas y otros proyectos por cliente), horas hombre, compras, inventario de insumos y cobro comercial, con cálculo automático de costos y márgenes.
 
-Evolución de «Resultados Omnia (3).html» (HTML con cálculo en el navegador) a una aplicación cliente‑servidor con base de datos central. La primera sede se llama *Omnia*; la app está pensada para replicarse en otras sedes.
+Evolución de «Resultados Omnia (3).html» (HTML con cálculo en el navegador) a una aplicación cliente‑servidor con base de datos central. Maneja varias sedes (Fritolay Omnia, Fritolay San Juan, Hilo, In Transit Z11): cada sede ve solo sus registros y cada usuario entra a las sedes que tiene asignadas.
 
 Puede usarse **solo** (con su propio login) o como **módulo dentro del servidor común** junto a Transportes ([Master App](https://github.com/INTRANSIT-GT/Master-App)), con los mismos usuarios de Supabase y abriendo el módulo asignado a cada usuario. Ver [`docs/08`](docs/08-modulo-operaciones-e-integracion.md).
 
@@ -27,7 +27,8 @@ Puede usarse **solo** (con su propio login) o como **módulo dentro del servidor
 | Importación de Excel (contingencia, con vista previa) | Operativo |
 | Módulo integrable: ruta base `/operaciones`, acceso por sesión compartida de Supabase, portal selector de módulos, proxy para servidor común | Operativo; probado con Supabase **simulado** (no con uno real) |
 | Integración con SAP | **No implementada** (solo campos y tabla `external_refs` preparados) |
-| Multisede, recuperación de clave por correo | **No implementados** |
+| Sedes: datos separados por sede, sedes asignadas por usuario, selector en la cabecera | Operativo |
+| Recuperación de clave por correo | **No implementada** |
 
 ## Tecnologías
 

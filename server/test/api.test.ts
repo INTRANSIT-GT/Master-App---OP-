@@ -116,7 +116,7 @@ describe('fidelidad: lo que sale del API = motor sobre el snapshot', () => {
     const eng = new Engine(bundleToEngineData({ cfg, ...demo }));
     // aislar: BD solo con datos demo en un motor nuevo
     const { loadEngineData } = await import('../src/services/store.js');
-    const d = await loadEngineData(pool);
+    const d = await loadEngineData(pool, 'OMNIA');
     const dbEng = new Engine({ ...d, prod: (await pool.query(`SELECT kind, record_date, sap, product_name, boxes, units, units_per_box, billable_boxes, labels_used, label_id, review_units, bad_boxes, container_type FROM production_records WHERE is_demo AND status='confirmado'`)).rows.map((r) => ({ kind: r.kind, date: r.record_date, sap: r.sap, productName: r.product_name, boxes: r.boxes, units: r.units, unitsPerBox: r.units_per_box, billableBoxes: r.billable_boxes, labelsUsed: r.labels_used, labelId: r.label_id, reviewUnits: r.review_units, badBoxes: r.bad_boxes, containerType: r.container_type })), hours: d.hours });
     const p = period(24321, cfg.mw), A = eng.results(p), B = dbEng.results(p);
     expect(B.lines.length).toBeGreaterThan(10);

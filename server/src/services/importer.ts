@@ -8,6 +8,7 @@ import { HttpError, bad, conflict, notFound } from '../http.js';
 import { bundleRows, type HoursRow, type ProdRow } from '../seed/bundle.js';
 import { audit } from './audit.js';
 import { sha256 } from './keys.js';
+import { sedeDe } from '../sede.js';
 import { getSettings, insertHoursRows, insertProdRows } from './store.js';
 import { tzToday } from './records.js';
 
@@ -128,16 +129,16 @@ export function interpret(type: ImportType, wb: { names: string[]; sheet: (n: st
 }
 export async function previewImport(user: AuthUser, type: ImportType, fileName: string, buf: Buffer) {
   if (!['estatus_diario', 'outsourcing'].includes(type)) throw bad('Tipo de archivo inválido.');
-  const s = await getSettings(pool), wb = await readWorkbook(buf);
+  const sede = sedeDe(user), s = await getSettings(pool), wb = await readWorkbook(buf);
   const { bundle, stats } = interpret(type, wb, s.inicio, s.wmDiv, dn(tzToday())!);
   const rows = bundleRows(bundle as any, type);
   if (!stats.some((x) => x.found)) throw bad('El archivo no contiene ninguna de las hojas esperadas para ' + (type === 'estatus_diario' ? 'Estatus diario' : 'Estatus outsourcing') + '.');
   // clasificar contra lo que ya existe y contra periodos cerrados
   const dates = [...rows.prod.map((r) => r.date), ...rows.hours.map((r) => r.date)].sort();
-  const closed = (await pool.query(`SELECT start_date, end_date FROM periods WHERE status='cerrado'`)).rows;
+  const closed = (await pool.query(`SELECT start_date, end_date FROM periods WHERE sede_id = $1 AND status='cerrado'`, [sede])).rows;
   const inClosed = (d: string) => closed.some((p) => d >= iso(dn(p.start_date)!) && d <= iso(dn(p.end_date)!));
-  const keysP = new Set((await pool.query(`SELECT kind || '|' || source_key k FROM production_records WHERE status <> 'anulado' AND source_key IS NOT NULL AND record_date BETWEEN $1 AND $2`, [dates[0] ?? '1970-01-01', dates[dates.length - 1] ?? '1970-01-01'])).rows.map((r) => r.k));
-  const keysH = new Set((await pool.query(`SELECT kind || '|' || source_key k FROM hours_records WHERE status <> 'anulado' AND source_key IS NOT NULL AND record_date BETWEEN $1 AND $2`, [dates[0] ?? '1970-01-01', dates[dates.length - 1] ?? '1970-01-01'])).rows.map((r) => r.k));
+  const keysP = new Set((await pool.query(`SELECT kind || '|' || source_key k FROM production_records WHERE sede_id = $3 AND status <> 'anulado' AND source_key IS NOT NULL AND record_date BETWEEN $1 AND $2`, [dates[0] ?? '1970-01-01', dates[dates.length - 1] ?? '1970-01-01', sede])).rows.map((r) => r.k));
+  const keysH = new Set((await pool.query(`SELECT kind || '|' || source_key k FROM hours_records WHERE sede_id = $3 AND status <> 'anulado' AND source_key IS NOT NULL AND record_date BETWEEN $1 AND $2`, [dates[0] ?? '1970-01-01', dates[dates.length - 1] ?? '1970-01-01', sede])).rows.map((r) => r.k));
   const tag = (r: ProdRow | HoursRow, set: Set<string>) => (inClosed(r.date) ? 'periodo_cerrado' : set.has(r.kind + '|' + r.sourceKey) ? 'duplicado' : 'nuevo');
   const prod = rows.prod.map((r) => ({ ...r, estado: tag(r, keysP) })), hours = rows.hours.map((r) => ({ ...r, estado: tag(r, keysH) }));
   const count = (a: { estado: string }[], e: string) => a.filter((x) => x.estado === e).length;
@@ -147,9 +148,9 @@ export async function previewImport(user: AuthUser, type: ImportType, fileName: 
     rango: dates.length ? { desde: dates[0], hasta: dates[dates.length - 1] } : null,
   };
   const errors = stats.filter((x) => !x.found).map((x) => ({ hoja: x.sheet, problema: 'Hoja o encabezados no encontrados (se omite)' }));
-  const batch = (await pool.query(`INSERT INTO import_batches (source, file_name, file_sha256, status, stats, errors, payload, created_by) VALUES ($1,$2,$3,'vista_previa',$4,$5,$6,$7) RETURNING id`,
-    [type, fileName, sha256(buf), JSON.stringify({ summary, hojas: stats }), JSON.stringify(errors), JSON.stringify({ prod, hours }), user.id])).rows[0].id;
-  const sameFile = (await pool.query(`SELECT id, applied_at FROM import_batches WHERE file_sha256 = $1 AND status = 'aplicado' ORDER BY applied_at DESC LIMIT 1`, [sha256(buf)])).rows[0];
+  const batch = (await pool.query(`INSERT INTO import_batches (source, file_name, file_sha256, status, stats, errors, payload, created_by, sede_id) VALUES ($1,$2,$3,'vista_previa',$4,$5,$6,$7,$8) RETURNING id`,
+    [type, fileName, sha256(buf), JSON.stringify({ summary, hojas: stats }), JSON.stringify(errors), JSON.stringify({ prod, hours }), user.id, sede])).rows[0].id;
+  const sameFile = (await pool.query(`SELECT id, applied_at FROM import_batches WHERE sede_id = $2 AND file_sha256 = $1 AND status = 'aplicado' ORDER BY applied_at DESC LIMIT 1`, [sha256(buf), sede])).rows[0];
   return {
     batchId: batch, type, fileName, summary, sheets: stats, errors,
     avisos: [...(sameFile ? [`Este mismo archivo ya se aplicó el ${new Date(sameFile.applied_at).toISOString().slice(0, 10)}; los registros repetidos se omitirán.`] : [])],
@@ -158,14 +159,15 @@ export async function previewImport(user: AuthUser, type: ImportType, fileName: 
 }
 
 export async function applyImport(user: AuthUser, batchId: string) {
+  const sede = sedeDe(user);
   return tx(async (c) => {
-    const b = (await c.query('SELECT * FROM import_batches WHERE id = $1 FOR UPDATE', [batchId])).rows[0];
+    const b = (await c.query('SELECT * FROM import_batches WHERE id = $1 AND sede_id = $2 FOR UPDATE', [batchId, sede])).rows[0];
     if (!b) throw notFound('Lote de importación');
     if (b.status === 'aplicado') throw conflict('YA_APLICADO', 'Este lote ya fue aplicado.');
     if (b.status !== 'vista_previa') throw conflict('ESTADO', 'El lote no está disponible para aplicar.');
     const pl = b.payload as { prod: any[]; hours: any[] };
     const prod = pl.prod.filter((r) => r.estado === 'nuevo'), hours = pl.hours.filter((r) => r.estado === 'nuevo');
-    const meta = { userId: user.id, batchId };
+    const meta = { sede, userId: user.id, batchId };
     const a = await insertProdRows(c, prod, meta), h = await insertHoursRows(c, hours, meta);
     const result = { produccion: { insertados: a.inserted, omitidos: a.skipped + pl.prod.length - prod.length }, horas: { insertados: h.inserted, omitidos: h.skipped + pl.hours.length - hours.length } };
     await c.query(`UPDATE import_batches SET status='aplicado', applied_at=now(), payload=NULL, stats = stats || $2::jsonb WHERE id = $1`, [batchId, JSON.stringify({ resultado: result })]);

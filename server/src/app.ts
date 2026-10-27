@@ -7,6 +7,7 @@ import { authenticate } from './auth.js';
 import { MODULE_ID, MODULE_NAME, MODULE_VERSION, config, publicConfig } from './config.js';
 import { pool } from './db.js';
 import { errorHandler } from './http.js';
+import { sedeScope } from './sede.js';
 import { ROLES } from './sso.js';
 import { authRouter } from './routes/auth.js';
 import { catalogRouter } from './routes/catalog.js';
@@ -33,7 +34,7 @@ export function createOperacionesRouter() {
   r.get('/api/modulo', (_req, res) => res.json({ id: MODULE_ID, nombre: MODULE_NAME, version: MODULE_VERSION, basePath: config.basePath, entrada: `${config.basePath}/`, api: `${config.basePath}/api`, authMode: config.authMode, roles: ROLES, asignacion: { claim: 'app_metadata.modulos', clave: MODULE_ID } }));
   r.get('/config.js', (_req, res) => { res.type('application/javascript').set('Cache-Control', 'no-store').send(`window.OPERACIONES_CONFIG=${JSON.stringify(publicConfig())};`); });
   r.use('/api/auth', authRouter);
-  r.use('/api', authenticate, recordsRouter, catalogRouter, reportsRouter, importRouter, usersRouter, purchasesRouter, comercialRouter);
+  r.use('/api', authenticate, sedeScope, recordsRouter, catalogRouter, reportsRouter, importRouter, usersRouter, purchasesRouter, comercialRouter);
   r.use('/api', (_req, res) => res.status(404).json({ error: 'NO_ENCONTRADO', message: 'Ruta inexistente.' }));
   const dist = path.resolve(config.webDist);
   if (fs.existsSync(dist)) { r.use(express.static(dist)); r.get(/^(?!\/api).*/, (_req, res) => res.sendFile(path.join(dist, 'index.html'))); }

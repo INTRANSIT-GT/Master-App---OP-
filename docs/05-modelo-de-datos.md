@@ -1,14 +1,16 @@
 # 05 · Modelo de datos
 
-Generado desde la base real tras aplicar `db/migrations/001_schema.sql` y `002_clientes_compras_comercial.sql` (PostgreSQL 16). Las restricciones especiales (índices únicos parciales, `EXCLUDE` de vigencias, triggers de periodo cerrado y de no‑borrado) están en los archivos de migración.
+Generado desde la base real tras aplicar `db/migrations/001_schema.sql`, `002_clientes_compras_comercial.sql` y `003_sedes.sql` (PostgreSQL 16). Las restricciones especiales (índices únicos parciales, `EXCLUDE` de vigencias, triggers de periodo cerrado y de no‑borrado) están en los archivos de migración.
 
-**28 tablas.** Resumen de relaciones:
+Desde la migración 003, cada registro operativo lleva `sede_id` (→ `sedes`); los catálogos son comunes a todas las sedes y `user_sedes` dice en qué sedes trabaja cada usuario (el administrador, en todas).
+
+**30 tablas.** Resumen de relaciones:
 
 ```mermaid
 erDiagram
-  inv_items ||--o{ inv_items : "ribbon_id"
   users ||--o{ standards : "created_by"
   users ||--o{ settings : "updated_by"
+  inv_items ||--o{ inv_items : "ribbon_id"
   products ||--o{ bag_usage : "sap"
   inv_items ||--o{ inventory_counts : "item_id"
   users ||--o{ inventory_counts : "created_by"
@@ -17,40 +19,54 @@ erDiagram
   users ||--o{ production_records : "voided_by"
   users ||--o{ production_records : "created_by"
   users ||--o{ production_records : "updated_by"
-  projects ||--o{ production_records : "project_id"
   import_batches ||--o{ hours_records : "import_batch_id"
   users ||--o{ hours_records : "voided_by"
   users ||--o{ hours_records : "created_by"
   users ||--o{ hours_records : "updated_by"
-  projects ||--o{ hours_records : "project_id"
-  users ||--o{ periods : "closed_by"
   users ||--o{ attendance : "updated_by"
   users ||--o{ requirements : "voided_by"
   users ||--o{ requirements : "created_by"
   users ||--o{ requirements : "updated_by"
-  purchase_order_lines ||--o{ requirements : "po_line_id"
-  users ||--o{ audit_log : "user_id"
   inv_items ||--o{ inventory_scrap : "item_id"
   users ||--o{ inventory_scrap : "voided_by"
   users ||--o{ inventory_scrap : "created_by"
   users ||--o{ inventory_scrap : "updated_by"
   users ||--o{ incidents : "created_by"
+  users ||--o{ periods : "closed_by"
+  users ||--o{ audit_log : "user_id"
   users ||--o{ idempotency_keys : "user_id"
   clients ||--o{ projects : "client_id"
+  projects ||--o{ production_records : "project_id"
+  projects ||--o{ hours_records : "project_id"
   inv_items ||--o{ supply_movements : "item_id"
   projects ||--o{ supply_movements : "project_id"
   users ||--o{ supply_movements : "voided_by"
   users ||--o{ supply_movements : "created_by"
   users ||--o{ supply_movements : "updated_by"
-  purchase_order_lines ||--o{ supply_movements : "po_line_id"
   clients ||--o{ purchase_orders : "client_id"
   users ||--o{ purchase_orders : "completed_by"
   users ||--o{ purchase_orders : "voided_by"
   users ||--o{ purchase_orders : "created_by"
   users ||--o{ purchase_orders : "updated_by"
   purchase_orders ||--o{ purchase_order_lines : "po_id"
+  purchase_order_lines ||--o{ requirements : "po_line_id"
+  purchase_order_lines ||--o{ supply_movements : "po_line_id"
   projects ||--o{ billing_rates : "project_id"
   users ||--o{ billing_rates : "created_by"
+  users ||--o{ user_sedes : "user_id"
+  sedes ||--o{ user_sedes : "sede_id"
+  sedes ||--o{ production_records : "sede_id"
+  sedes ||--o{ hours_records : "sede_id"
+  sedes ||--o{ attendance : "sede_id"
+  sedes ||--o{ requirements : "sede_id"
+  sedes ||--o{ inventory_scrap : "sede_id"
+  sedes ||--o{ inventory_counts : "sede_id"
+  sedes ||--o{ supply_movements : "sede_id"
+  sedes ||--o{ periods : "sede_id"
+  sedes ||--o{ purchase_orders : "sede_id"
+  sedes ||--o{ import_batches : "sede_id"
+  sedes ||--o{ incidents : "sede_id"
+  sedes ||--o{ audit_log : "sede_id"
 ```
 
 ## `attendance`
@@ -63,8 +79,9 @@ erDiagram
 | `updated_by` | uuid | sí |  |
 | `updated_at` | timestamp with time zone | no | `now()` |
 | `version` | integer | no | `1` |
+| `sede_id` | text | no |  |
 
-Claves foráneas: `updated_by` → `users`
+Claves foráneas: `updated_by` → `users`, `sede_id` → `sedes`
 
 ## `audit_log`
 
@@ -80,8 +97,9 @@ Claves foráneas: `updated_by` → `users`
 | `reason` | text | sí |  |
 | `before` | jsonb | sí |  |
 | `after` | jsonb | sí |  |
+| `sede_id` | text | sí |  |
 
-Claves foráneas: `user_id` → `users`
+Claves foráneas: `user_id` → `users`, `sede_id` → `sedes`
 
 ## `bag_usage`
 
@@ -166,8 +184,9 @@ Claves foráneas: `project_id` → `projects`, `created_by` → `users`
 | `updated_at` | timestamp with time zone | no | `now()` |
 | `version` | integer | no | `1` |
 | `project_id` | uuid | sí |  |
+| `sede_id` | text | no |  |
 
-Claves foráneas: `import_batch_id` → `import_batches`, `voided_by` → `users`, `created_by` → `users`, `updated_by` → `users`, `project_id` → `projects`
+Claves foráneas: `import_batch_id` → `import_batches`, `voided_by` → `users`, `created_by` → `users`, `updated_by` → `users`, `project_id` → `projects`, `sede_id` → `sedes`
 
 ## `idempotency_keys`
 
@@ -197,8 +216,9 @@ Claves foráneas: `user_id` → `users`
 | `created_by` | uuid | sí |  |
 | `created_at` | timestamp with time zone | no | `now()` |
 | `applied_at` | timestamp with time zone | sí |  |
+| `sede_id` | text | no |  |
 
-Claves foráneas: `created_by` → `users`
+Claves foráneas: `created_by` → `users`, `sede_id` → `sedes`
 
 ## `incidents`
 
@@ -212,8 +232,9 @@ Claves foráneas: `created_by` → `users`
 | `created_by` | uuid | sí |  |
 | `created_at` | timestamp with time zone | no | `now()` |
 | `resolved_at` | timestamp with time zone | sí |  |
+| `sede_id` | text | no |  |
 
-Claves foráneas: `created_by` → `users`
+Claves foráneas: `created_by` → `users`, `sede_id` → `sedes`
 
 ## `inv_items`
 
@@ -244,8 +265,9 @@ Claves foráneas: `ribbon_id` → `inv_items`
 | `qty` | numeric | no |  |
 | `created_by` | uuid | sí |  |
 | `created_at` | timestamp with time zone | no | `now()` |
+| `sede_id` | text | no |  |
 
-Claves foráneas: `item_id` → `inv_items`, `created_by` → `users`
+Claves foráneas: `item_id` → `inv_items`, `created_by` → `users`, `sede_id` → `sedes`
 
 ## `inventory_scrap`
 
@@ -266,8 +288,9 @@ Claves foráneas: `item_id` → `inv_items`, `created_by` → `users`
 | `updated_by` | uuid | sí |  |
 | `updated_at` | timestamp with time zone | no | `now()` |
 | `version` | integer | no | `1` |
+| `sede_id` | text | no |  |
 
-Claves foráneas: `item_id` → `inv_items`, `voided_by` → `users`, `created_by` → `users`, `updated_by` → `users`
+Claves foráneas: `item_id` → `inv_items`, `voided_by` → `users`, `created_by` → `users`, `updated_by` → `users`, `sede_id` → `sedes`
 
 ## `material_labels`
 
@@ -298,8 +321,9 @@ Claves foráneas: `item_id` → `inv_items`, `voided_by` → `users`, `created_b
 | `close_notes` | text | sí |  |
 | `snapshot` | jsonb | sí |  |
 | `warnings` | jsonb | no | `'[]'::jsonb` |
+| `sede_id` | text | no |  |
 
-Claves foráneas: `closed_by` → `users`
+Claves foráneas: `closed_by` → `users`, `sede_id` → `sedes`
 
 ## `process_lines`
 
@@ -351,8 +375,9 @@ Claves foráneas: `closed_by` → `users`
 | `updated_at` | timestamp with time zone | no | `now()` |
 | `version` | integer | no | `1` |
 | `project_id` | uuid | sí |  |
+| `sede_id` | text | no |  |
 
-Claves foráneas: `import_batch_id` → `import_batches`, `voided_by` → `users`, `created_by` → `users`, `updated_by` → `users`, `project_id` → `projects`
+Claves foráneas: `import_batch_id` → `import_batches`, `voided_by` → `users`, `created_by` → `users`, `updated_by` → `users`, `project_id` → `projects`, `sede_id` → `sedes`
 
 ## `products`
 
@@ -450,8 +475,9 @@ Claves foráneas: `po_id` → `purchase_orders`
 | `updated_by` | uuid | sí |  |
 | `updated_at` | timestamp with time zone | no | `now()` |
 | `version` | integer | no | `1` |
+| `sede_id` | text | no |  |
 
-Claves foráneas: `client_id` → `clients`, `completed_by` → `users`, `voided_by` → `users`, `created_by` → `users`, `updated_by` → `users`
+Claves foráneas: `client_id` → `clients`, `completed_by` → `users`, `voided_by` → `users`, `created_by` → `users`, `updated_by` → `users`, `sede_id` → `sedes`
 
 ## `requirements`
 
@@ -478,8 +504,9 @@ Claves foráneas: `client_id` → `clients`, `completed_by` → `users`, `voided
 | `updated_at` | timestamp with time zone | no | `now()` |
 | `version` | integer | no | `1` |
 | `po_line_id` | uuid | sí |  |
+| `sede_id` | text | no |  |
 
-Claves foráneas: `voided_by` → `users`, `created_by` → `users`, `updated_by` → `users`, `po_line_id` → `purchase_order_lines`
+Claves foráneas: `voided_by` → `users`, `created_by` → `users`, `updated_by` → `users`, `po_line_id` → `purchase_order_lines`, `sede_id` → `sedes`
 
 ## `schema_migrations`
 
@@ -487,6 +514,15 @@ Claves foráneas: `voided_by` → `users`, `created_by` → `users`, `updated_by
 |---|---|:-:|---|
 | `name` | text | no |  |
 | `applied_at` | timestamp with time zone | no | `now()` |
+
+## `sedes`
+
+| Columna | Tipo | Nulo | Por defecto |
+|---|---|:-:|---|
+| `id` | text | no |  |
+| `name` | text | no |  |
+| `active` | boolean | no | `true` |
+| `sort` | integer | no | `0` |
 
 ## `settings`
 
@@ -540,8 +576,18 @@ Claves foráneas: `created_by` → `users`
 | `updated_by` | uuid | sí |  |
 | `updated_at` | timestamp with time zone | no | `now()` |
 | `version` | integer | no | `1` |
+| `sede_id` | text | no |  |
 
-Claves foráneas: `item_id` → `inv_items`, `project_id` → `projects`, `voided_by` → `users`, `created_by` → `users`, `updated_by` → `users`, `po_line_id` → `purchase_order_lines`
+Claves foráneas: `item_id` → `inv_items`, `project_id` → `projects`, `voided_by` → `users`, `created_by` → `users`, `updated_by` → `users`, `po_line_id` → `purchase_order_lines`, `sede_id` → `sedes`
+
+## `user_sedes`
+
+| Columna | Tipo | Nulo | Por defecto |
+|---|---|:-:|---|
+| `user_id` | uuid | no |  |
+| `sede_id` | text | no |  |
+
+Claves foráneas: `user_id` → `users`, `sede_id` → `sedes`
 
 ## `users`
 

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { api, hasToken, setToken } from './api';
+import { api, hasToken, setSede, setToken } from './api';
 import { fmtDT } from './format';
 import { asset, cfg, ownLogin } from './module';
 import { clearSession, goPortal } from './sso';
@@ -31,8 +31,10 @@ function Shell({ onLogout }: { onLogout: () => boolean | void }) {
   useEffect(() => { if (!navOpen) return; const f = (e: KeyboardEvent) => { if (e.key === 'Escape') setNavOpen(false); }; window.addEventListener('keydown', f); return () => window.removeEventListener('keydown', f); }, [navOpen]);
   // el contenido se desplaza dentro de <main>: al cambiar de pantalla se vuelve arriba
   const go = (t: Tab) => { setTab(t); location.hash = t; setNavOpen(false); mainRef.current?.scrollTo(0, 0); };
-  const exp = (k: 'excel' | 'pdf') => api.download(`/exportar/${k}?mes=${month}`, `InTransit_Operaciones_${month}.${k === 'excel' ? 'xlsx' : 'pdf'}`).then(() => toast('Archivo descargado.')).catch((e) => toast(e.message, true));
-  if (!meta) return <p className="muted" style={{ padding: 24 }}>Cargando…</p>;
+  const exp = (k: 'excel' | 'pdf') => api.download(`/exportar/${k}?mes=${month}`, `InTransit_Operaciones_${meta?.sede?.id}_${month}.${k === 'excel' ? 'xlsx' : 'pdf'}`).then(() => toast('Archivo descargado.')).catch((e) => toast(e.message, true));
+  // otra sede = otros datos en todas las pantallas: se recarga la página entera (conserva la pantalla por el #)
+  const cambiarSede = (id: string) => { setSede(id); location.reload(); };
+  if (!meta?.sede) return <p className="muted" style={{ padding: 24 }}>Cargando…</p>;
   const st = sync.offline ? 'off' : sync.pending ? 'saving' : '';
   void onLogout;
   return (
@@ -40,6 +42,9 @@ function Shell({ onLogout }: { onLogout: () => boolean | void }) {
       <header className="top">
         <button className="navbtn" aria-label="Abrir menú" aria-expanded={navOpen} aria-controls="side-nav" onClick={() => setNavOpen(!navOpen)}><Icon name="menu" size={22} /></button>
         <div className="brand"><span className="isotile"><img src={asset('isologo.png')} alt="In Transit" /></span><span className="brand-t">In Transit Operaciones</span></div>
+        {meta.sedes.length > 1
+          ? <label className="sede" title="Sede con la que trabajas"><Icon name="pin" size={16} /><select aria-label="Sede" value={meta.sede.id} onChange={(e) => cambiarSede(e.target.value)}>{meta.sedes.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></label>
+          : <span className="sede" title="Sede con la que trabajas"><Icon name="pin" size={16} /><span>{meta.sede.name}</span></span>}
         <span className="spacer" />
         <span className={'sync ' + st} role="status" aria-live="polite"><i />{sync.offline ? 'Sin conexión: no se guardó' : sync.pending ? 'Guardando…' : sync.lastSaved ? 'Guardado ' + fmtDT(new Date(sync.lastSaved).toISOString()) : 'Conectado'}</span>
         <div className="actions">
@@ -70,7 +75,7 @@ function Shell({ onLogout }: { onLogout: () => boolean | void }) {
 
 const initials = (n: string) => n.split(/\s+/).filter(Boolean).slice(0, 2).map((x) => x[0]).join('').toUpperCase();
 
-// Trazos de los íconos de Transportes (js/utils.js, sol y luna de js/ui.js), más fábrica, carrito y caja para los módulos de OP.
+// Trazos de los íconos de Transportes (js/utils.js, sol y luna de js/ui.js), más fábrica, carrito, caja y ubicación (sede) para OP.
 const ICON: Record<string, string> = {
   factory: 'M3 21V10l6 4v-4l6 4V5h6v16zM3 21h18',
   users: 'M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6M16 5a3 3 0 010 6M18 14c2 .8 3 2.8 3 6M12 8a3 3 0 11-6 0 3 3 0 016 0',
@@ -79,6 +84,7 @@ const ICON: Record<string, string> = {
   dollar: 'M12 3v18M16 7.5c0-1.7-1.8-3-4-3s-4 1.3-4 3 1.8 2.8 4 3.2 4 1.5 4 3.3-1.8 3-4 3-4-1.3-4-3',
   gear: 'M15 12a3 3 0 11-6 0 3 3 0 016 0M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1',
   menu: 'M3 6h18M3 12h18M3 18h18',
+  pin: 'M12 21s-7-6.2-7-11.5a7 7 0 0114 0C19 14.8 12 21 12 21zM14.5 9.5a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0',
   sun: 'M16 12a4 4 0 11-8 0 4 4 0 018 0M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M19.1 4.9l-1.4 1.4M6.3 17.7l-1.4 1.4',
   moon: 'M20 14.5A8.5 8.5 0 019.5 4a8.5 8.5 0 1010.5 10.5z',
 };

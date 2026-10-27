@@ -7,6 +7,11 @@ import { accessToken, readSession } from './sso';
 let token: string | null = null;
 try { token = localStorage.getItem('omnia_token'); } catch { /* sin almacenamiento */ }
 export const setToken = (t: string | null) => { token = t; try { t ? localStorage.setItem('omnia_token', t) : localStorage.removeItem('omnia_token'); } catch { /* noop */ } };
+// Sede elegida en este navegador: viaja en X-Sede. Sin ella el servidor usa la primera asignada (y /meta dice cuál es).
+let sede: string | null = null;
+try { sede = localStorage.getItem('op_sede'); } catch { /* sin almacenamiento */ }
+export const getSede = () => sede;
+export const setSede = (s: string | null) => { sede = s; try { s ? localStorage.setItem('op_sede', s) : localStorage.removeItem('op_sede'); } catch { /* noop */ } };
 // en sso la sesión la aporta el portal; con entrada propia, la sesión de Supabase guardada en este navegador
 export const hasToken = () => (ownLogin ? !!readSession() : cfg.authMode === 'sso' || !!token);
 
@@ -30,6 +35,7 @@ async function call<T>(method: string, path: string, body?: unknown, opts: { ide
     if (cfg.authMode === 'sso' && !t) { onUnauthorized(); throw new ApiError(401, 'NO_AUTENTICADO', ownLogin ? 'Tu sesión terminó. Entra de nuevo.' : 'Inicia sesión desde el portal.'); }
     if (t) headers.Authorization = 'Bearer ' + t;
     if (opts.idem) headers['Idempotency-Key'] = opts.idem;
+    if (sede) headers['X-Sede'] = sede;
     let payload: BodyInit | undefined;
     if (opts.form) payload = opts.form; else if (body !== undefined) { headers['Content-Type'] = 'application/json'; payload = JSON.stringify(body); }
     let res: Response;
@@ -40,6 +46,8 @@ async function call<T>(method: string, path: string, body?: unknown, opts: { ide
       const j = await res.json();
       if (!res.ok) {
         if (res.status === 401 && path !== '/auth/login') onUnauthorized();
+        // la sede guardada ya no está asignada (la quitó un administrador): se vuelve a la sede predeterminada
+        if (res.status === 403 && j.error === 'SEDE_NO_ASIGNADA' && sede) { setSede(null); location.reload(); }
         throw new ApiError(res.status, j.error ?? 'ERROR', j.message ?? 'Error', j.details);
       }
       if (write) setSync({ lastSaved: Date.now() });

@@ -17,6 +17,8 @@ import { bundleRows, catalogData, LINE_DEFS, type Bundle } from './bundle.js';
 
 const dir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), 'data');
 const readJson = (f: string) => JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8'));
+// el conteo base, las semanas ajustadas y los datos de demostración vienen del Excel de Omnia: van a esa sede
+const SEDE = 'OMNIA';
 
 export async function seedCatalog(c: PoolClient) {
   const cfg = readJson('catalog.json').cfg as Bundle['cfg'];
@@ -37,13 +39,13 @@ export async function seedCatalog(c: PoolClient) {
   for (const m of cfg.matLab)
     await c.query(`INSERT INTO material_labels (sap, name, label, confirmed, aliases) VALUES ($1,$2,$3,$4,$5) ON CONFLICT DO NOTHING`, [m.sap || null, m.n, m.lab ?? '', !!m.ok, m.al ?? []]);
   for (const [id, qty] of Object.entries(cat.base.qty))
-    await c.query('INSERT INTO inventory_counts (count_date, item_id, qty) VALUES ($1,$2,$3) ON CONFLICT (count_date, item_id) DO NOTHING', [cat.base.date, id, qty]);
-  for (const [k, v] of Object.entries({ ...cat.settings, itemUse: useText, sede: 'Omnia' }))
+    await c.query('INSERT INTO inventory_counts (count_date, item_id, qty, sede_id) VALUES ($1,$2,$3,$4) ON CONFLICT (sede_id, count_date, item_id) DO NOTHING', [cat.base.date, id, qty, SEDE]);
+  for (const [k, v] of Object.entries({ ...cat.settings, itemUse: useText }))
     await c.query('INSERT INTO settings (key, value) VALUES ($1,$2) ON CONFLICT (key) DO NOTHING', [k, JSON.stringify(v)]);
   for (const [k, w] of Object.entries(cat.mw)) {
     const p = period(+k, cat.mw), y = Math.floor(+k / 12);
-    await c.query(`INSERT INTO periods (month_key, year, month, week_from, week_to, start_date, end_date) VALUES ($1,$2,$3,$4,$5,$6,$7) ON CONFLICT (month_key) DO NOTHING`,
-      [+k, y, (+k % 12) + 1, w[0], w[1], iso(p.s), iso(p.e)]);
+    await c.query(`INSERT INTO periods (month_key, year, month, week_from, week_to, start_date, end_date, sede_id) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT (sede_id, month_key) DO NOTHING`,
+      [+k, y, (+k % 12) + 1, w[0], w[1], iso(p.s), iso(p.e), SEDE]);
   }
 }
 
@@ -58,18 +60,20 @@ export const DEMO_PASSWORD = 'Omnia2026!demo';
 
 export async function seedUsers(c: PoolClient, users: readonly { email: string; name: string; role: string }[], password: string) {
   const hash = await bcrypt.hash(password, 10);
-  for (const u of users)
+  for (const u of users) {
     await c.query(`INSERT INTO users (email, name, password_hash, role) VALUES ($1,$2,$3,$4::user_role) ON CONFLICT (lower(email)) DO NOTHING`, [u.email, u.name, hash, u.role]);
+    await c.query(`INSERT INTO user_sedes (user_id, sede_id) SELECT id, $2 FROM users WHERE lower(email) = lower($1) ON CONFLICT DO NOTHING`, [u.email, SEDE]);
+  }
 }
 
 export async function seedDemo(c: PoolClient) {
   const demo = readJson('demo-records.json');
-  const batch = (await c.query(`INSERT INTO import_batches (source, file_name, status, stats, applied_at) VALUES ('demo','demo-records.json','aplicado','{}', now()) RETURNING id`)).rows[0].id;
+  const batch = (await c.query(`INSERT INTO import_batches (source, file_name, status, stats, applied_at, sede_id) VALUES ('demo','demo-records.json','aplicado','{}', now(), $1) RETURNING id`, [SEDE])).rows[0].id;
   const rows = bundleRows(demo, 'demo');
-  const meta = { batchId: batch, isDemo: true };
+  const meta = { sede: SEDE, batchId: batch, isDemo: true };
   const a = await insertProdRows(c, rows.prod, meta), b = await insertHoursRows(c, rows.hours, meta);
   for (const [w, h] of Object.entries(rows.attendance))
-    await c.query('INSERT INTO attendance (week_monday, paid_hours, is_demo) VALUES ($1,$2,true) ON CONFLICT (week_monday) DO NOTHING', [w, h]);
+    await c.query('INSERT INTO attendance (week_monday, paid_hours, is_demo, sede_id) VALUES ($1,$2,true,$3) ON CONFLICT (sede_id, week_monday) DO NOTHING', [w, h, SEDE]);
   await c.query(`UPDATE import_batches SET stats = $2 WHERE id = $1`, [batch, JSON.stringify({ produccion: a.inserted, horas: b.inserted })]);
   await c.query(`INSERT INTO settings (key, value) VALUES ('demo', 'true') ON CONFLICT (key) DO UPDATE SET value = 'true'`);
   return { produccion: a.inserted, horas: b.inserted, asistencia: Object.keys(rows.attendance).length };
@@ -84,10 +88,10 @@ export async function seedDemoV2(c: PoolClient) {
     ['COCACOLA', 'DESARME', '2026-10-20', 36, 'DS-004'], ['ALNOST', 'VF', '2026-10-07', 310, 'VF-101'], ['ALNOST', 'VF', '2026-10-14', 275, 'VF-102'], ['XPORTA', 'VF', '2026-10-09', 540, 'XP-201'],
     ['LICORERA', 'ETQ', '2026-10-12', 2400, 'LC-301'], ['LICORERA', 'PACKS', '2026-10-19', 150, 'LC-302'],
   ];
-  const batch = (await c.query(`INSERT INTO import_batches (source, file_name, status, stats, applied_at) VALUES ('demo','demo-v2','aplicado','{}', now()) RETURNING id`)).rows[0].id;
+  const batch = (await c.query(`INSERT INTO import_batches (source, file_name, status, stats, applied_at, sede_id) VALUES ('demo','demo-v2','aplicado','{}', now(), $1) RETURNING id`, [SEDE])).rows[0].id;
   for (const [cc, code, date, qty, ref] of gen) {
     const pid = P(cc, code), key = naturalKey(['gen', pid, date, ref, qty]) + '#1';
-    await c.query(`INSERT INTO production_records (kind, project_id, record_date, ref_doc, boxes, source, source_key, is_demo, import_batch_id, notes) VALUES ('gen',$1,$2,$3,$4,'demo',$5,true,$6,'Registro de demostración') ON CONFLICT DO NOTHING`, [pid, date, ref, qty, key, batch]);
+    await c.query(`INSERT INTO production_records (kind, project_id, record_date, ref_doc, boxes, source, source_key, is_demo, import_batch_id, notes, sede_id) VALUES ('gen',$1,$2,$3,$4,'demo',$5,true,$6,'Registro de demostración',$7) ON CONFLICT DO NOTHING`, [pid, date, ref, qty, key, batch, SEDE]);
   }
   const rates: [string, string, string, number, string][] = [['COCACOLA', 'ENV', 'UNIDAD', 0.35, ''], ['COCACOLA', 'TAR', 'TARIMA', 18, ''], ['COCACOLA', 'PACKS', 'PACK', 1.9, ''], ['ALNOST', 'VF', 'CAJA', 0.8, ''], ['LICORERA', 'ETQ', 'UNIDAD', 0.22, '']];
   for (const [cc, code, unit, rate] of rates)
@@ -96,13 +100,14 @@ export async function seedDemoV2(c: PoolClient) {
   let sort = 100;
   for (const [code, name, unit, price, qty] of ins) {
     await c.query(`INSERT INTO inv_items (id, kind, code, name, unit, price, sort) VALUES ($1,'ins',$2,$3,$4,$5,$6) ON CONFLICT (id) DO NOTHING`, ['I:' + code, code, name, unit, price, sort++]);
-    await c.query(`INSERT INTO inventory_counts (count_date, item_id, qty) SELECT max(count_date), $1, $2 FROM inventory_counts HAVING max(count_date) IS NOT NULL ON CONFLICT DO NOTHING`, ['I:' + code, qty]);
+    await c.query(`INSERT INTO inventory_counts (count_date, item_id, qty, sede_id) SELECT max(count_date), $1, $2, $3 FROM inventory_counts WHERE sede_id = $3 HAVING max(count_date) IS NOT NULL ON CONFLICT DO NOTHING`, ['I:' + code, qty, SEDE]);
   }
 }
 /** Órdenes de compra de demostración (usa los servicios reales: emitir y completar ingresan inventario y requerimientos). */
 export async function seedDemoOrders() {
-  const u = (await pool.query(`SELECT id, email, name, role FROM users WHERE lower(email) = 'supervisor@omnia.local'`)).rows[0] as AuthUser | undefined;
-  if (!u) return 'sin usuario supervisor: órdenes omitidas';
+  const row = (await pool.query(`SELECT id, email, name, role FROM users WHERE lower(email) = 'supervisor@omnia.local'`)).rows[0] as AuthUser | undefined;
+  if (!row) return 'sin usuario supervisor: órdenes omitidas';
+  const u: AuthUser = { ...row, sede: SEDE };
   if ((await pool.query(`SELECT 1 FROM purchase_orders WHERE is_demo`)).rowCount) return 'órdenes demo ya existen';
   const lab = (await pool.query(`SELECT code, price FROM inv_items WHERE kind='lab' ORDER BY sort LIMIT 1`)).rows[0], rib = (await pool.query(`SELECT code FROM inv_items WHERE kind='rib' ORDER BY sort LIMIT 1`)).rows[0];
   const base = { poDate: '2026-10-14', costCenter: '2 EMBOCEN', serviceType: '08-TRANSPORTE', paymentCondition: 'CONTADO', currency: 'GTQ', requestedBy: 'Coordinador de proyecto (demo)', deliverTo: 'Bodega de insumos', deliveryPlace: 'Sede Omnia', preparedBy: 'Coordinador (demo)', preparedPosition: 'Desarrollador de Proyectos', approvedBy: 'Supervisor (demo)', approvedPosition: 'Gerente de Operaciones' };

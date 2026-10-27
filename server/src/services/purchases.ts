@@ -6,6 +6,7 @@ import type { AuthUser } from '../auth.js';
 import { pool, tx } from '../db.js';
 import { AREAS } from '../engine/types.js';
 import { bad, conflict, notFound, parse } from '../http.js';
+import { sedeDe } from '../sede.js';
 import { audit } from './audit.js';
 import { tzToday } from './records.js';
 
@@ -59,8 +60,8 @@ async function insertLines(c: PoolClient, poId: string, lines: ReturnType<typeof
     await c.query(`INSERT INTO purchase_order_lines (po_id, line_no, code, mat_type, mat_ref, description, qty, unit_price, amount, area) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
       [poId, i + 1, l.code ?? null, l.matType, l.matRef ?? null, l.description, l.qty, l.unitPrice, l.amount, l.area ?? null]);
 }
-async function loadPO(c: PoolClient | typeof pool, id: string, lock = false) {
-  const po = (await c.query(`SELECT * FROM purchase_orders WHERE id = $1${lock ? ' FOR UPDATE' : ''}`, [id])).rows[0];
+async function loadPO(c: PoolClient | typeof pool, id: string, sede: string, lock = false) {
+  const po = (await c.query(`SELECT * FROM purchase_orders WHERE id = $1 AND sede_id = $2${lock ? ' FOR UPDATE' : ''}`, [id, sede])).rows[0];
   if (!po) throw notFound('Orden de compra');
   const lines = (await c.query('SELECT * FROM purchase_order_lines WHERE po_id = $1 ORDER BY line_no', [id])).rows;
   return { po, lines };
@@ -70,16 +71,17 @@ const full = (x: { po: any; lines: any[] }) => ({ ...toApi(x.po), lines: x.lines
 export async function createPO(user: AuthUser, body: unknown, emit = false) {
   const b = parse(poSchema, body);
   if (b.currency === 'GTQ') b.exchangeRate = 1;
+  const sede = sedeDe(user);
   return tx(async (c) => {
     await validateLines(c, b.lines);
     const lines = withAmounts(b.lines), total = r2(lines.reduce((a, l) => a + l.amount, 0));
     const seq = (await c.query(`INSERT INTO counters (key, value) VALUES ($1, 1) ON CONFLICT (key) DO UPDATE SET value = counters.value + 1 RETURNING value`, ['po:' + b.prefix])).rows[0].value;
-    const cols = ['seq', 'number', 'total', 'status', 'created_by', 'updated_by'], vals: unknown[] = [seq, `${b.prefix}-${seq}`, total, emit ? 'emitida' : 'borrador', user.id, user.id];
+    const cols = ['seq', 'number', 'total', 'status', 'created_by', 'updated_by', 'sede_id'], vals: unknown[] = [seq, `${b.prefix}-${seq}`, total, emit ? 'emitida' : 'borrador', user.id, user.id, sede];
     for (const [k, col] of Object.entries(COL)) if ((b as any)[k] !== undefined) { cols.push(col); vals.push((b as any)[k]); }
     if (emit) cols.push('issued_at'), vals.push(new Date());
     const po = (await c.query(`INSERT INTO purchase_orders (${cols.join(',')}) VALUES (${cols.map((_, i) => '$' + (i + 1)).join(',')}) RETURNING *`, vals)).rows[0];
     await insertLines(c, po.id, lines);
-    const out = full(await loadPO(c, po.id));
+    const out = full(await loadPO(c, po.id, sede));
     await audit(c, user, 'orden_compra', po.id, 'crear', null, out);
     return out;
   });
@@ -88,8 +90,9 @@ export async function createPO(user: AuthUser, body: unknown, emit = false) {
 export async function updatePO(user: AuthUser, id: string, body: any) {
   const { version, reason, ...rest } = body ?? {};
   if (!Number.isInteger(version)) throw bad('Falta la versión de la orden (para no pisar cambios de otra persona).');
+  const sede = sedeDe(user);
   return tx(async (c) => {
-    const cur = await loadPO(c, id, true);
+    const cur = await loadPO(c, id, sede, true);
     if (['completada', 'anulada'].includes(cur.po.status)) throw conflict('ESTADO', `Una orden ${cur.po.status} no se edita${cur.po.status === 'completada' ? '; anúlala para revertir sus efectos en el inventario' : ''}.`);
     if (version !== cur.po.version) throw conflict('CONFLICTO_VERSION', 'Otra persona modificó esta orden. Recarga y vuelve a intentar.', { actual: cur.po.version });
     if (cur.po.status === 'emitida' && !(typeof reason === 'string' && reason.trim().length >= 5)) throw bad('Para editar una orden emitida escribe el motivo del cambio.');
@@ -108,18 +111,19 @@ export async function updatePO(user: AuthUser, id: string, body: any) {
     await c.query(`UPDATE purchase_orders SET ${sets.join(', ')} WHERE id = $${vals.length}`, vals);
     await c.query('DELETE FROM purchase_order_lines WHERE po_id = $1', [id]);
     await insertLines(c, id, lines);
-    const out = full(await loadPO(c, id));
+    const out = full(await loadPO(c, id, sede));
     await audit(c, user, 'orden_compra', id, 'editar', full(cur), out, typeof reason === 'string' ? reason.trim() : null);
     return out;
   });
 }
 
 export async function emitPO(user: AuthUser, id: string) {
+  const sede = sedeDe(user);
   return tx(async (c) => {
-    const cur = await loadPO(c, id, true);
+    const cur = await loadPO(c, id, sede, true);
     if (cur.po.status !== 'borrador') throw conflict('ESTADO', 'Solo los borradores se pueden emitir.');
     await c.query(`UPDATE purchase_orders SET status = 'emitida', issued_at = now(), updated_by = $2, updated_at = now(), version = version + 1 WHERE id = $1`, [id, user.id]);
-    const out = full(await loadPO(c, id));
+    const out = full(await loadPO(c, id, sede));
     await audit(c, user, 'orden_compra', id, 'emitir', { status: 'borrador' }, { status: 'emitida', number: cur.po.number });
     return out;
   });
@@ -130,36 +134,38 @@ export async function completePO(user: AuthUser, id: string, receivedDate?: stri
   const date = receivedDate ?? tzToday();
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw bad('Fecha de recepción inválida.');
   if (date > tzToday()) throw bad('La fecha de recepción no puede ser futura.');
+  const sede = sedeDe(user);
   return tx(async (c) => {
-    const { po, lines } = await loadPO(c, id, true);
+    const { po, lines } = await loadPO(c, id, sede, true);
     if (po.status !== 'emitida') throw conflict('ESTADO', po.status === 'borrador' ? 'Primero emite la orden.' : `La orden ya está ${po.status}.`);
     if (date < String(po.po_date).slice(0, 10)) throw bad('La recepción no puede ser anterior a la fecha de la orden.');
     const rate = +po.exchange_rate || 1, created: { requirements: string[]; supply: string[] } = { requirements: [], supply: [] };
     for (const l of lines) {
       const amountQ = r2(+l.amount * rate);
       if (l.mat_type === 'Insumo') {
-        const m = (await c.query(`INSERT INTO supply_movements (move_date, item_id, kind, qty, notes, po_line_id, is_demo, created_by, updated_by) VALUES ($1,$2,'ingreso',$3,$4,$5,$6,$7,$7) RETURNING id`,
-          [date, l.mat_ref, l.qty, `OC ${po.number}`, l.id, po.is_demo, user.id])).rows[0];
+        const m = (await c.query(`INSERT INTO supply_movements (move_date, item_id, kind, qty, notes, po_line_id, is_demo, created_by, updated_by, sede_id) VALUES ($1,$2,'ingreso',$3,$4,$5,$6,$7,$7,$8) RETURNING id`,
+          [date, l.mat_ref, l.qty, `OC ${po.number}`, l.id, po.is_demo, user.id, sede])).rows[0];
         created.supply.push(m.id);
       } else {
         const ref = l.mat_type === 'Etiqueta' ? l.mat_ref.replace(/\*/g, 'X') : l.mat_type === 'Bolsa' ? 'BOLSA' : l.mat_ref ?? l.description;
-        const r = (await c.query(`INSERT INTO requirements (request_date, area, oc, amount, supplier, qty, mat_type, mat_ref, notes, po_line_id, is_demo, created_by, updated_by)
-          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$12) RETURNING id`,
-          [date, l.area || 'gen', po.number, amountQ, po.supplier, l.qty, l.mat_type, ref, l.description, l.id, po.is_demo, user.id])).rows[0];
+        const r = (await c.query(`INSERT INTO requirements (request_date, area, oc, amount, supplier, qty, mat_type, mat_ref, notes, po_line_id, is_demo, created_by, updated_by, sede_id)
+          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$12,$13) RETURNING id`,
+          [date, l.area || 'gen', po.number, amountQ, po.supplier, l.qty, l.mat_type, ref, l.description, l.id, po.is_demo, user.id, sede])).rows[0];
         created.requirements.push(r.id);
       }
     }
     await c.query(`UPDATE purchase_orders SET status = 'completada', received_date = $2, completed_at = now(), completed_by = $3, updated_by = $3, updated_at = now(), version = version + 1 WHERE id = $1`, [id, date, user.id]);
     await audit(c, user, 'orden_compra', id, 'completar', { status: 'emitida' }, { status: 'completada', receivedDate: date, ...created });
-    return full(await loadPO(c, id));
+    return full(await loadPO(c, id, sede));
   });
 }
 
 export async function voidPO(user: AuthUser, id: string, reason: unknown) {
   const why = typeof reason === 'string' && reason.trim().length >= 5 ? reason.trim() : null;
   if (!why) throw bad('Anular una orden requiere justificación (mínimo 5 caracteres).');
+  const sede = sedeDe(user);
   return tx(async (c) => {
-    const cur = await loadPO(c, id, true);
+    const cur = await loadPO(c, id, sede, true);
     if (cur.po.status === 'anulada') throw conflict('ANULADO', 'La orden ya estaba anulada.');
     let reverted = { requirements: 0, supply: 0 };
     if (cur.po.status === 'completada') {
@@ -169,31 +175,31 @@ export async function voidPO(user: AuthUser, id: string, reason: unknown) {
       reverted = { requirements: (await c.query(q('requirements'), [ids, txt, user.id])).rowCount ?? 0, supply: (await c.query(q('supply_movements'), [ids, txt, user.id])).rowCount ?? 0 };
     }
     await c.query(`UPDATE purchase_orders SET status = 'anulada', void_reason = $2, voided_by = $3, voided_at = now(), updated_by = $3, updated_at = now(), version = version + 1 WHERE id = $1`, [id, why, user.id]);
-    const out = full(await loadPO(c, id));
+    const out = full(await loadPO(c, id, sede));
     await audit(c, user, 'orden_compra', id, 'anular', { status: cur.po.status }, { status: 'anulada', revertido: reverted }, why);
     return out;
   });
 }
 
-export async function listPO(f: { from?: string; to?: string; status?: string; q?: string; limit?: number }) {
-  const w: string[] = [], v: unknown[] = [];
+export async function listPO(f: { from?: string; to?: string; status?: string; q?: string; limit?: number }, sede: string) {
+  const v: unknown[] = [sede], w: string[] = ['po.sede_id = $1'];
   if (f.from) { v.push(f.from); w.push(`po_date >= $${v.length}`); }
   if (f.to) { v.push(f.to); w.push(`po_date <= $${v.length}`); }
   if (f.status) { v.push(f.status); w.push(`status = $${v.length}`); }
   if (f.q) { v.push('%' + f.q + '%'); w.push(`(number ILIKE $${v.length} OR supplier ILIKE $${v.length} OR EXISTS (SELECT 1 FROM purchase_order_lines l WHERE l.po_id = purchase_orders.id AND l.description ILIKE $${v.length}))`); }
   const rows = (await pool.query(`SELECT po.*, (SELECT count(*)::int FROM purchase_order_lines l WHERE l.po_id = po.id) AS line_count, c.name AS client_name FROM purchase_orders po LEFT JOIN clients c ON c.id = po.client_id
-    ${w.length ? 'WHERE ' + w.join(' AND ').replaceAll('purchase_orders.', 'po.') : ''} ORDER BY po.po_date DESC, po.seq DESC LIMIT ${Math.min(f.limit ?? 200, 500)}`, v)).rows;
+    WHERE ${w.join(' AND ').replaceAll('purchase_orders.', 'po.')} ORDER BY po.po_date DESC, po.seq DESC LIMIT ${Math.min(f.limit ?? 200, 500)}`, v)).rows;
   return rows.map(toApi);
 }
-export async function getPO(id: string) {
-  const x = await loadPO(pool, id);
+export async function getPO(id: string, sede: string) {
+  const x = await loadPO(pool, id, sede);
   const history = (await pool.query(`SELECT id, at, user_email AS "userEmail", action, reason FROM audit_log WHERE entity = 'orden_compra' AND entity_id = $1 ORDER BY id`, [id])).rows;
   const client = x.po.client_id ? (await pool.query('SELECT name FROM clients WHERE id = $1', [x.po.client_id])).rows[0]?.name : null;
   return { ...full(x), clientName: client, history };
 }
-export async function purchaseHistory(f: { from?: string; to?: string; supplier?: string }) {
+export async function purchaseHistory(f: { from?: string; to?: string; supplier?: string }, sede: string) {
   // historial de qué material se solicitó, cantidad, monto y proveedor (una fila por línea)
-  const v: unknown[] = [], w = [`po.status <> 'anulada'`];
+  const v: unknown[] = [sede], w = [`po.sede_id = $1`, `po.status <> 'anulada'`];
   if (f.from) { v.push(f.from); w.push(`po.po_date >= $${v.length}`); }
   if (f.to) { v.push(f.to); w.push(`po.po_date <= $${v.length}`); }
   if (f.supplier) { v.push('%' + f.supplier + '%'); w.push(`po.supplier ILIKE $${v.length}`); }

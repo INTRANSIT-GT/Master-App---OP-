@@ -6,6 +6,7 @@ import type { AuthUser } from '../auth.js';
 import { pool, tx } from '../db.js';
 import { HttpError, bad, conflict, notFound, parse } from '../http.js';
 import { can } from '../permissions.js';
+import { sedeDe } from '../sede.js';
 import { AREAS } from '../engine/types.js';
 import { audit } from './audit.js';
 import { naturalKey } from './keys.js';
@@ -164,6 +165,7 @@ async function assertDateOk(d: string, settings: Record<string, any>) {
 
 export async function createRecord(key: EntKey, user: AuthUser, body: unknown) {
   const e = ENTITIES[key];
+  const sede = sedeDe(user);
   return tx(async (c) => {
     const b: any = parse(e.schema, body), s = await getSettings(c);
     await assertDateOk(b.date, s);
@@ -174,7 +176,7 @@ export async function createRecord(key: EntKey, user: AuthUser, body: unknown) {
     if (e.keyed && e.natural) {
       const base = naturalKey(e.natural(b));
       let n = 1;
-      const exist = await c.query(`SELECT id FROM ${e.table} WHERE source_key LIKE $1 AND status <> 'anulado' ORDER BY source_key`, [base + '#%']);
+      const exist = await c.query(`SELECT id FROM ${e.table} WHERE sede_id = $2 AND source_key LIKE $1 AND status <> 'anulado' ORDER BY source_key`, [base + '#%', sede]);
       if (exist.rowCount) {
         if (!b.allowDuplicate) throw conflict('DUPLICADO', 'Ya existe un registro idéntico. Si de verdad es otro, confirma el duplicado.', { existingId: exist.rows[0].id });
         if (!can(user.role, 'registro.confirmar')) throw new HttpError(403, 'SIN_PERMISO', 'Solo un supervisor puede registrar un duplicado intencional.');
@@ -183,7 +185,7 @@ export async function createRecord(key: EntKey, user: AuthUser, body: unknown) {
       sourceKey = base + '#' + n;
     }
     const { cols, vals } = dbVals(e, b);
-    cols.push('status', 'created_by'); vals.push(status, user.id);
+    cols.push('status', 'created_by', 'sede_id'); vals.push(status, user.id, sede);
     if (e.table !== 'attendance') { cols.push('updated_by'); vals.push(user.id); }
     if (e.keyed) { cols.push('source', 'source_key'); vals.push('captura', sourceKey); }
     const r = await c.query(`INSERT INTO ${e.table} (${cols.join(',')}) VALUES (${cols.map((_, i) => '$' + (i + 1)).join(',')}) RETURNING *`, vals);
@@ -193,9 +195,9 @@ export async function createRecord(key: EntKey, user: AuthUser, body: unknown) {
 }
 
 export async function updateRecord(key: EntKey, user: AuthUser, id: string, body: any) {
-  const e = ENTITIES[key];
+  const e = ENTITIES[key], sede = sedeDe(user);
   return tx(async (c) => {
-    const cur = (await c.query(`SELECT * FROM ${e.table} WHERE id = $1 FOR UPDATE`, [id])).rows[0];
+    const cur = (await c.query(`SELECT * FROM ${e.table} WHERE id = $1 AND sede_id = $2 FOR UPDATE`, [id, sede])).rows[0];
     if (!cur) throw notFound();
     if (cur.status === 'anulado') throw conflict('ANULADO', 'El registro está anulado y no puede editarse.');
     { const why = e.lock?.(cur); if (why) throw conflict('BLOQUEADO', why); }
@@ -223,7 +225,7 @@ export async function updateRecord(key: EntKey, user: AuthUser, id: string, body
     if (!sets.length) return toApi(cur);
     if (e.keyed && e.natural) {
       const base = naturalKey(e.natural(full));
-      const dup = await c.query(`SELECT id FROM ${e.table} WHERE source_key LIKE $1 AND status <> 'anulado' AND id <> $2`, [base + '#%', id]);
+      const dup = await c.query(`SELECT id FROM ${e.table} WHERE sede_id = $3 AND source_key LIKE $1 AND status <> 'anulado' AND id <> $2`, [base + '#%', id, sede]);
       if (dup.rowCount) throw conflict('DUPLICADO', 'Con ese cambio quedaría idéntico a otro registro existente.', { existingId: dup.rows[0].id });
       sets.push(`source_key = $${vals.length + 1}`); vals.push(base + '#1');
     }
@@ -240,8 +242,9 @@ const coalesceReason = (r: unknown) => (typeof r === 'string' && r.trim().length
 export async function voidRecord(key: EntKey, user: AuthUser, id: string, reason: unknown) {
   const e = ENTITIES[key];
   const why = coalesceReason(reason); if (!why) throw bad('La anulación requiere una justificación (mínimo 5 caracteres).');
+  const sede = sedeDe(user);
   return tx(async (c) => {
-    const cur = (await c.query(`SELECT * FROM ${e.table} WHERE id = $1 FOR UPDATE`, [id])).rows[0];
+    const cur = (await c.query(`SELECT * FROM ${e.table} WHERE id = $1 AND sede_id = $2 FOR UPDATE`, [id, sede])).rows[0];
     if (!cur) throw notFound();
     if (cur.status === 'anulado') throw conflict('ANULADO', 'El registro ya estaba anulado.');
     { const why = e.lock?.(cur); if (why) throw conflict('BLOQUEADO', why); }
@@ -252,9 +255,9 @@ export async function voidRecord(key: EntKey, user: AuthUser, id: string, reason
 }
 
 export async function confirmRecord(key: EntKey, user: AuthUser, id: string) {
-  const e = ENTITIES[key];
+  const e = ENTITIES[key], sede = sedeDe(user);
   return tx(async (c) => {
-    const cur = (await c.query(`SELECT * FROM ${e.table} WHERE id = $1 FOR UPDATE`, [id])).rows[0];
+    const cur = (await c.query(`SELECT * FROM ${e.table} WHERE id = $1 AND sede_id = $2 FOR UPDATE`, [id, sede])).rows[0];
     if (!cur) throw notFound();
     if (cur.status !== 'borrador') throw conflict('ESTADO', 'Solo los borradores se pueden confirmar.');
     if (!can(user.role, 'registro.confirmar') && cur.created_by !== user.id) throw new HttpError(403, 'SIN_PERMISO', 'Solo puedes confirmar tus propios borradores.');
@@ -265,23 +268,24 @@ export async function confirmRecord(key: EntKey, user: AuthUser, id: string) {
 }
 
 export interface ListQuery { from?: string; to?: string; kind?: string; status?: string; q?: string; project?: string; limit?: number; offset?: number }
-export async function listRecords(key: EntKey, f: ListQuery) {
+export async function listRecords(key: EntKey, f: ListQuery, sede: string) {
   const e = ENTITIES[key], where: string[] = [], vals: unknown[] = [];
   const add = (sql: string, v: unknown) => { vals.push(v); where.push(sql.replaceAll('?', '$' + vals.length)); };
+  add('sede_id = ?', sede);
   if (f.from) add(`${e.dateCol} >= ?`, f.from);
   if (f.to) add(`${e.dateCol} <= ?`, f.to);
   if (f.kind && 'kind' in e.map) { const ks = f.kind.split(',').filter(Boolean); if (ks.length > 1) add('kind = ANY(?::text[])', ks); else add('kind = ?', ks[0]); }
   if (f.project && 'projectId' in e.map) add('project_id = ANY(?::uuid[])', f.project.split(',').filter(Boolean));
   if (f.status) add('status = ?::record_status', f.status);
   if (f.q) add(`(coalesce(notes,'') ILIKE ? OR coalesce(${e.searchCol ?? (key === 'production' ? 'product_name' : key === 'hours' ? 'worker_name' : key === 'requirements' ? 'supplier' : 'reason')},'') ILIKE ?)`, '%' + f.q + '%');
-  const w = where.length ? 'WHERE ' + where.join(' AND ') : '';
+  const w = 'WHERE ' + where.join(' AND ');
   const lim = Math.min(Math.max(f.limit ?? 200, 1), 1000), off = Math.max(f.offset ?? 0, 0);
   const total = (await pool.query(`SELECT count(*)::int AS n FROM ${e.table} ${w}`, vals)).rows[0].n;
   const rows = (await pool.query(`SELECT * FROM ${e.table} ${w} ORDER BY ${e.dateCol} DESC, created_at DESC LIMIT ${lim} OFFSET ${off}`, vals)).rows;
   return { total, rows: rows.map(toApi) };
 }
-export async function getRecord(key: EntKey, id: string) {
-  const r = await pool.query(`SELECT * FROM ${ENTITIES[key].table} WHERE id = $1`, [id]);
+export async function getRecord(key: EntKey, id: string, sede: string) {
+  const r = await pool.query(`SELECT * FROM ${ENTITIES[key].table} WHERE id = $1 AND sede_id = $2`, [id, sede]);
   if (!r.rowCount) throw notFound();
   return toApi(r.rows[0]);
 }
