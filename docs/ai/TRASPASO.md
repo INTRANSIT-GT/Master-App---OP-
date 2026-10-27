@@ -204,4 +204,11 @@ Comando: `node scripts/intransit-startup.cjs` con JSON sintético por stdin, en 
 | Modo oscuro en escritorio (Compras, Inventario) y teléfono 390×844, revisado en capturas | PASA: contraste legible, sin desborde horizontal, 0 errores de página |
 | `demo/` y `app/` servidos en local en `/Master-App---OP-/` + Chrome | PASA: menú de 6 opciones, sin barra, tema oscuro aplicado y recordado; app en la pantalla de entrada; 0 errores de página |
 
-**Aprobado:** commit (Ing. Carmen, 2026-10-27). **No verificado:** la app publicada en Pages con sesión real. **Pendiente:** el Excel y PDF que se descargan desde Pages los genera la Edge Function `operaciones`: siguen con el aviso hasta volver a desplegarla (`scripts/supabase-funcion.mjs`), lo que requiere autorización de Ing. Carmen (regla 8).
+**Aprobado:** commit y push (Ing. Carmen, 2026-10-27; publicado en `e6972ab`, Pages «built» y sirviendo el bundle probado en local). Despliegue de la Edge Function `operaciones` en `bocgzjupocnvjehklxhs` (Ing. Carmen, 2026-10-27): `node scripts/supabase-funcion.mjs --desplegar`, solo esa función; sin cambios de datos, esquema, permisos ni de Transportes.
+
+| Caso en vivo (función desplegada, sesión real de `op-prueba-admin`) | Resultado |
+|---|---|
+| Excel y PDF del mes 2026-10 | PASA: HTTP 200, texto leído, sin «DEMOSTRACIÓN» |
+| Excel y PDF de una OC marcada demo | PASA: HTTP 200, texto leído, sin «DEMOSTRACIÓN» |
+
+**No verificado:** recorrido de la web publicada con sesión real en el navegador.

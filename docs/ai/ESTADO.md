@@ -20,7 +20,7 @@ No autorizado: otros cambios en Supabase (nada de Transportes), servidores reale
 - `cd server && npm test`: **97/97**; `cd web && npm test`: 10/10; `tsc` de server y web sin errores.
 - **Administrador de OP (2026-10-25):** la cuenta corporativa de proyectos tiene rol administrador en el módulo (ver TRASPASO).
 - **Menú lateral al estilo Transportes (2026-10-26):** cabecera compacta y menú a la izquierda (cajón con ☰ en teléfono), en `app/` y `demo/`. Ver TRASPASO.
-- **App operativa (2026-10-27):** sin barra de demostración; menú de 6 opciones (Producción, Horas y personal, Compras, Inventario, Comercial, Ajustes), abre en Producción; cierre y reapertura de periodo en Ajustes › Periodos; modo claro/oscuro; Excel y PDF sin aviso de demostración (en Pages, hasta volver a desplegar la Edge Function). Verificado en local (server 97/97, web 10/10, smoke); `app/` y `demo/` regenerados. Ver TRASPASO.
+- **App operativa (2026-10-27):** sin barra de demostración; menú de 6 opciones (Producción, Horas y personal, Compras, Inventario, Comercial, Ajustes), abre en Producción; cierre y reapertura de periodo en Ajustes › Periodos; modo claro/oscuro; Excel y PDF sin aviso de demostración. Publicado (`e6972ab`) y Edge Function redesplegada; descargas verificadas en vivo. Verificado en local (server 97/97, web 10/10, smoke); `app/` y `demo/` regenerados. Ver TRASPASO.
 - **Demo estática** en `demo/` (solo lectura, sin cuenta), sigue publicada.
 - **OP corre en local:** PostgreSQL 16.15, bases `omnia` (recreada hoy: seed demo + mock de compras) y `omnia_test`; API :3001 y web :5173 en modo dev.
 - Kit de Claude, hook, EOS (`eos/`, 2026.10.25.3) y bitácora: ver TRASPASO.
