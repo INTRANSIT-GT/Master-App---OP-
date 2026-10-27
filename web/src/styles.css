@@ -221,9 +221,42 @@ table{border-collapse:collapse;width:100%}
 .legend{display:flex;gap:var(--space-16);font-size:12px;color:var(--text-control);margin-top:var(--space-8)}.legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px}
 .bargrp.sel{outline:2px solid var(--focus-ring);outline-offset:2px;border-radius:var(--radius-sm)}
 
-.login-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:var(--space-16);background:var(--surface-tint)}
-.login{background:var(--surface);border:1px solid var(--border);box-shadow:var(--shadow-card);border-radius:var(--radius-md);padding:var(--space-32);width:100%;max-width:400px}
-.login h1{font-size:24px;line-height:30px}.login .field{margin-top:var(--space-16)}
+/* entrada: mismo formato que Transportes (css/app.css .login/.lp/.lf), con identidad de Operaciones: azul propio de OP,
+   cuadrícula técnica de fondo y el flujo de etapas en lugar de la ruta. El panel conserva sus colores en modo oscuro. */
+.auth{display:grid;grid-template-columns:1.05fr 1fr;min-height:100vh}
+@supports(min-height:100dvh){.auth{min-height:100dvh}}
+.auth-hero{position:relative;overflow:hidden;display:flex;flex-direction:column;justify-content:space-between;gap:24px;padding:44px 48px;color:#fff;
+  background:linear-gradient(rgba(255,255,255,.055) 1px,transparent 1px) 0 0/32px 32px,linear-gradient(90deg,rgba(255,255,255,.055) 1px,transparent 1px) 0 0/32px 32px,linear-gradient(155deg,#003CA6 0%,#002A78 100%)}
+.auth-logo{width:min(300px,70%);height:auto;display:block}
+.auth-eyebrow{display:inline-block;font-family:var(--font-display);font-weight:700;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:#003CA6;background:#FEAD09;border-radius:999px;padding:3px 12px;margin-bottom:14px}
+.auth-hero h1{color:#fff;font-size:42px;line-height:1.12;max-width:13ch}
+.auth-hero p{color:#CFE0F5;max-width:36ch;margin:14px 0 0;font-size:16px;line-height:1.45}
+.auth-theme{position:absolute;top:14px;right:14px;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.28);color:#fff;border-radius:999px;min-height:40px;padding:0 16px;font-family:var(--font-display);font-weight:600;cursor:pointer}
+.auth-theme:hover{background:rgba(255,255,255,.2)}
+.auth-flow{width:100%;max-width:440px;height:auto}
+.auth-flow .draw{stroke-dasharray:400;stroke-dashoffset:400;animation:auth-draw 2.2s .3s ease forwards}
+.auth-flow .step{opacity:.35;animation:auth-step .4s ease forwards}
+@keyframes auth-draw{to{stroke-dashoffset:0}}
+@keyframes auth-step{to{opacity:1}}
+@media (prefers-reduced-motion:reduce){.auth-flow .draw{animation:none;stroke-dashoffset:0}.auth-flow .step{animation:none;opacity:1}}
+.auth-form{display:flex;align-items:center;justify-content:center;padding:44px 48px;background:var(--surface)}
+.auth-box{width:100%;max-width:400px}
+.auth-brand{display:block;width:min(280px,78%);height:auto;margin:0 0 30px}
+.auth-box h2{font-size:24px;line-height:30px;margin-bottom:4px}
+.auth-box .field{margin-top:var(--space-16)}
+/* en oscuro el logotipo a color pierde contraste: se muestra en blanco */
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .auth-brand{filter:brightness(0) invert(1)}}
+:root[data-theme="dark"] .auth-brand{filter:brightness(0) invert(1)}
+.auth-submit{width:100%;margin-top:22px;min-height:48px;font-size:14px}
+@media (max-width:899px){
+  .auth{grid-template-columns:1fr;grid-template-rows:auto 1fr}
+  .auth-hero{padding:68px 24px 28px;gap:18px}
+  .auth-hero h1{font-size:30px;max-width:none}
+  .auth-logo{width:min(220px,62%)}
+  .auth-flow{display:none}
+  .auth-form{padding:28px 20px 40px;align-items:flex-start}
+  .auth-brand{display:none}
+}
 
 .wkf{display:inline-flex;align-items:center;gap:6px;font-family:var(--font-display);font-size:13px;font-weight:600;color:var(--text-control);margin-left:6px}
 .wkf select{padding:5px 8px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface)}

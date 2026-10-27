@@ -212,3 +212,22 @@ Comando: `node scripts/intransit-startup.cjs` con JSON sintético por stdin, en 
 | Excel y PDF de una OC marcada demo | PASA: HTTP 200, texto leído, sin «DEMOSTRACIÓN» |
 
 **No verificado:** recorrido de la web publicada con sesión real en el navegador.
+
+## 2026-10-27 · Pantalla de entrada «Herramienta de Operaciones»
+
+**Solicitud (Ing. Carmen):** una página de inicio de sesión parecida a la de Transportes, con otro aspecto que la distinga como Operaciones y el título «Herramienta de Operaciones».
+
+- **Hecho:** `web/src/pages/Login.tsx` con el formato de Transportes (`js/ui.js` `loginHTML`, `css/app.css` `.login/.lp/.lf`): panel de marca a la izquierda y formulario a la derecha. **Identidad de OP:** azul propio (#003CA6 en degradado), cuadrícula técnica de fondo, etiqueta amarilla «Operaciones», subtítulo «Seguimiento de procesos operativos…» y, en lugar de la ruta animada, un flujo de 5 etapas (Producción → Horas → Compras → Inventario → Cobro) que se completa con una marca verde. Botón «Modo oscuro/claro» en el panel (como «Opciones» en Transportes). Estilos `.auth-*` en `styles.css` (sustituyen `.login-wrap/.login`); en oscuro el logotipo del formulario se muestra en blanco; en teléfono una columna, sin el flujo ni el logotipo repetido; sin animación con `prefers-reduced-motion`.
+- **Logotipos:** `web/public/logo-blanco.png` y `logo-color.png`, copiados de `Master-App/assets/logos/` (los oficiales de Transportes). La lógica de entrada no cambió (Supabase u `/auth/login`), ni los nombres que usan las pruebas («Correo…», «Contraseña», botón «Entrar»).
+
+**Pruebas · Windows 11, Node 22.23.4, PostgreSQL 16.15, Chrome + playwright-core:**
+
+| Caso | Resultado |
+|---|---|
+| `cd web && npx tsc -b`, `npm test` | PASA: sin errores, 10/10 |
+| Capturas 1440 px claro y oscuro, teléfono 390 px | PASA: sin desborde; etiquetas del flujo completas; logotipo legible en oscuro |
+| Clave mala y entrada correcta (servidor local) | PASA: «Correo o contraseña incorrectos.» y entra al menú |
+| `e2e/smoke.mjs` contra :3001 | PASA: sin fallos ni errores de consola |
+| `app/` y `demo/` regenerados y servidos en `/Master-App---OP-/` | PASA: logotipos presentes, entrada y menú, 0 errores de página |
+
+**Pendiente:** commit y publicación (decisión de Ing. Carmen).
