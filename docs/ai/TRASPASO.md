@@ -230,4 +230,32 @@ Comando: `node scripts/intransit-startup.cjs` con JSON sintético por stdin, en 
 | `e2e/smoke.mjs` contra :3001 | PASA: sin fallos ni errores de consola |
 | `app/` y `demo/` regenerados y servidos en `/Master-App---OP-/` | PASA: logotipos presentes, entrada y menú, 0 errores de página |
 
-**Pendiente:** commit y publicación (decisión de Ing. Carmen).
+**Publicado:** commit `74be7a0` (pedido de Ing. Carmen, 2026-10-27).
+
+## 2026-10-27 · Textos fuera de la entrada y la cabecera
+
+**Solicitud (Ing. Carmen):** quitar «Entra con tu cuenta de In Transit (la misma de Transportes)» de la entrada y «Producción, compras, inventario y cobro · Sede Omnia» de la cabecera. Hecho y publicado en `6490f83` (web 10/10; los textos no están en `app/` ni `demo/`).
+
+## 2026-10-27 · Sedes
+
+**Solicitud (Ing. Carmen):** usar OP en varias sedes: SEDE FRITOLAY OMNIA, SEDE FRITOLAY SAN JUAN, SEDE HILO, SEDE INTRANSIT Z11.
+**DECISIÓN APROBADA (Ing. Carmen, en la sesión):** la sede se asigna a cada usuario (el administrador entra en todas; con varias sedes se cambia en la cabecera) y los datos se separan por sede. Aceptó migrar el esquema `operaciones` del Supabase de prueba y redesplegar la función.
+
+- **Hecho:** migración `db/migrations/003_sedes.sql` (tablas `sedes`, `user_sedes`; `sede_id` en los registros operativos, periodos, órdenes, importaciones y bitácora; unicidad y cierre por sede; lo existente a Omnia). `server/src/sede.ts` (encabezado `X-Sede`, errores `SEDE_NO_ASIGNADA` y `SIN_SEDE`); servicios, motor, reportes, cobro, Excel/PDF y bitácora por sede; `/api/sedes`. Web: sede en la cabecera, sedes por usuario y tarjeta Sedes en Ajustes › Usuarios, aviso «Sin sede asignada» (recupera el estilo que perdió con la entrada nueva). `scripts/supabase-base.mjs migrar`. Docs 02, 03, 04, 05, 09 y README. Commit `aa9043d`.
+- **Comunes a todas las sedes (INTERPRETACIÓN, a confirmar):** clientes y proyectos, productos, estándares y tarifas, artículos de inventario, parámetros y numeración de órdenes de compra.
+
+**Pruebas · Windows 11, Node 22, PostgreSQL 16.15, Chrome + playwright-core:**
+
+| Caso | Resultado |
+|---|---|
+| `cd server && npx tsc --noEmit && npm test` | PASA: 110/110 (13 nuevas en `test/sedes.test.ts`) |
+| `cd web && npx tsc -b && npm test` | PASA: 10/10 |
+| Migración 003 sobre copia de la base local con datos y octubre cerrado | PASA: todo a Omnia; cierre de Omnia bloquea solo Omnia; inserción sin sede rechazada |
+| Recorrido en Chrome contra servidor local (cambio de sede, Usuarios claro/oscuro, teléfono 390 px, cuenta sin sede) | PASA: sin desborde ni errores de página |
+| `e2e/smoke.mjs` contra el servidor local | PASA: sin fallos ni errores de consola |
+| `demo/` y `app/` servidos en local | PASA: 0 errores; la demo muestra la sede |
+| Supabase: `node scripts/supabase-base.mjs migrar` | PASA: 003 aplicada; 4 sedes, 8 usuarios a Omnia, 629 registros y 13 OC en Omnia |
+| Supabase: `node scripts/supabase-funcion.mjs --desplegar` y lecturas en vivo con las cuentas de prueba | PASA: admin ve 4 sedes; Hilo vacía; Excel de Hilo con su nombre; operador solo Omnia (Hilo → 403); CORS admite `x-sede` |
+
+**No verificado:** recorrido de Pages con sesión real en el navegador tras publicar; escrituras en Supabase en otra sede (solo lecturas en vivo).
+**Pendiente:** asignar sedes al equipo en Ajustes › Usuarios; confirmar qué catálogos deben ser propios de cada sede. El servidor local viejo en :3001 (de una sesión anterior) sigue con el código previo; el nuevo corrió en :3011.
