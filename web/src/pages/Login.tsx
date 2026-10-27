@@ -44,7 +44,6 @@ export default function Login({ onLogin }: { onLogin: () => void }) {
       <section className="auth-form"><form className="auth-box" onSubmit={submit}>
         <img className="auth-brand" src={asset('logo-color.png')} alt="In Transit · innovative outsourcing" width={280} height={95} />
         <h2>Ingresar</h2>
-        <p className="muted">{ownLogin ? 'Usa tu cuenta de In Transit (la misma de Transportes).' : 'Inicia sesión para continuar.'}</p>
         <div className="field"><label htmlFor="em">Correo electrónico</label><input id="em" type="email" autoComplete="username" required value={email} onChange={(e) => setEmail(e.target.value)} /></div>
         <div className="field"><label htmlFor="pw">Contraseña</label><input id="pw" type="password" autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} /></div>
         {err && <div className="errline" role="alert">{err}</div>}

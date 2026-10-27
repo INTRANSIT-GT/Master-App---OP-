@@ -39,7 +39,7 @@ function Shell({ onLogout }: { onLogout: () => boolean | void }) {
     <div className={'app' + (navOpen ? ' nav-open' : '')}>
       <header className="top">
         <button className="navbtn" aria-label="Abrir menú" aria-expanded={navOpen} aria-controls="side-nav" onClick={() => setNavOpen(!navOpen)}><Icon name="menu" size={22} /></button>
-        <div className="brand"><span className="isotile"><img src={asset('isologo.png')} alt="In Transit" /></span><span className="brand-t">In Transit Operaciones<small>Producción, compras, inventario y cobro · Sede {meta.sede}</small></span></div>
+        <div className="brand"><span className="isotile"><img src={asset('isologo.png')} alt="In Transit" /></span><span className="brand-t">In Transit Operaciones</span></div>
         <span className="spacer" />
         <span className={'sync ' + st} role="status" aria-live="polite"><i />{sync.offline ? 'Sin conexión: no se guardó' : sync.pending ? 'Guardando…' : sync.lastSaved ? 'Guardado ' + fmtDT(new Date(sync.lastSaved).toISOString()) : 'Conectado'}</span>
         <div className="actions">
