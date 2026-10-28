@@ -78,7 +78,7 @@ function Programacion() {
   const abrirAsignar = async (o: any) => {
     try {
       const d = await api.get(`/maquila/ordenes/${o.id}`);
-      const cur = new Map((d.assignments ?? []).filter((a: any) => a.active).map((a: any) => [a.personId, a] as [string, any]));
+      const cur = new Map<string, any>((d.assignments ?? []).filter((a: any) => a.active).map((a: any) => [a.personId, a] as [string, any]));
       setAsignar({ o: d, filas: (gente ?? []).map((p: any) => ({ personId: p.id, code: p.code, name: p.name, on: cur.has(p.id), qty: String(cur.get(p.id)?.qtyAssigned ?? '') })) });
     } catch (e: any) { toast(e.message, true); }
   };
