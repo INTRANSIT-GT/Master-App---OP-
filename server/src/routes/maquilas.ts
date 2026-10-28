@@ -4,9 +4,10 @@ import { need } from '../auth.js';
 import { parse } from '../http.js';
 import { idempotent } from '../idempotency.js';
 import {
-  assignmentsSchema, closeOrder, closeSchema, createOrder, createPerson, getOrder, listOrders, listPeople,
-  listPorFacturar, matrizSecciones, orderPatchSchema, orderSchema, personPatchSchema, personSchema,
-  replaceAssignments, seccionesDe, setSeccion, startOrder, startSchema, updateOrder, updatePerson,
+  annulSchema, annulStatement, assignmentsSchema, closeOrder, closeSchema, closeStatement, createOrder, createPerson,
+  createStatement, getOrder, getStatement, listOrders, listPeople, listPorFacturar, listStatements, listValidacion, matrizSecciones,
+  orderPatchSchema, orderSchema, personPatchSchema, personSchema, reopenOrder, reopenSchema, replaceAssignments,
+  seccionesDe, setSeccion, startOrder, startSchema, statementSchema, updateOrder, updatePerson, validateOrder, validateSchema,
 } from '../services/maquilas.js';
 
 export const maquilasRouter = Router();
@@ -52,6 +53,46 @@ maquilasRouter.post('/maquila/ordenes/:id/iniciar', need('maquila.iniciar'), asy
 });
 maquilasRouter.post('/maquila/ordenes/:id/cerrar', need('maquila.cerrar'), async (req, res) => {
   res.json(await closeOrder(req.user!, req.params.id as string, parse(closeSchema, req.body ?? {})));
+});
+
+// ───────── validaciones ─────────
+maquilasRouter.post('/maquila/ordenes/:id/validar-sop', need('maquila.validar_sop'), async (req, res) => {
+  res.json(await validateOrder(req.user!, req.params.id as string, 'SOP', parse(validateSchema, req.body)));
+});
+maquilasRouter.post('/maquila/ordenes/:id/validar-jefatura', need('maquila.validar_jefatura'), async (req, res) => {
+  res.json(await validateOrder(req.user!, req.params.id as string, 'JEFATURA', parse(validateSchema, req.body)));
+});
+maquilasRouter.post('/maquila/ordenes/:id/validar', need('maquila.validar'), async (req, res) => {
+  res.json(await validateOrder(req.user!, req.params.id as string, 'VALIDADOR', parse(validateSchema, req.body)));
+});
+maquilasRouter.post('/maquila/ordenes/:id/reabrir', need('maquila.editar'), async (req, res) => {
+  const b = parse(reopenSchema, req.body);
+  res.json(await reopenOrder(req.user!, req.params.id as string, b.reason));
+});
+maquilasRouter.get('/maquila/validacion', need('maquila.ver'), async (req, res) => {
+  res.json(await listValidacion(req.sede!, parse(z.object({
+    from: z.string().optional(), to: z.string().optional(), limit: z.coerce.number().int().optional(),
+  }), req.query)));
+});
+
+// ───────── cargos (agrupación facturable) ─────────
+maquilasRouter.get('/maquila/cargos', need('maquila.ver'), async (req, res) => {
+  res.json(await listStatements(req.sede!, parse(z.object({
+    status: z.string().optional(), clientId: z.string().uuid().optional(), limit: z.coerce.number().int().optional(),
+  }), req.query)));
+});
+maquilasRouter.get('/maquila/cargos/:id', need('maquila.ver'), async (req, res) => {
+  res.json(await getStatement(req.sede!, req.params.id as string));
+});
+maquilasRouter.post('/maquila/cargos', need('maquila.agrupar'), idempotent, async (req, res) => {
+  res.status(201).json(await createStatement(req.user!, parse(statementSchema, req.body)));
+});
+maquilasRouter.post('/maquila/cargos/:id/cerrar', need('maquila.agrupar'), async (req, res) => {
+  res.json(await closeStatement(req.user!, req.params.id as string));
+});
+maquilasRouter.post('/maquila/cargos/:id/anular', need('maquila.anular'), async (req, res) => {
+  const b = parse(annulSchema, req.body);
+  res.json(await annulStatement(req.user!, req.params.id as string, b.reason));
 });
 
 // ───────── por facturar ─────────
