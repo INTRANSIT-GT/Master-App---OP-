@@ -39,7 +39,7 @@ function Programacion() {
   const { can, meta, toast, confirmBox } = useApp();
   const per = usePeriod();
   const [fCliente, setFCliente] = useState(''), [fEstado, setFEstado] = useState(''), [busy, setBusy] = useState(false);
-  const [cerrar, setCerrar] = useState<any>(null), [asignar, setAsignar] = useState<any>(null), [key] = useState(newKey());
+  const [cerrar, setCerrar] = useState<any>(null), [asignar, setAsignar] = useState<any>(null), [key] = useState(newKey);
   const { data: cat } = useLoad<any>(() => api.get('/catalogo'), []);
   const { data: gente } = useLoad<any[]>(() => api.get('/maquila/personas?active=true&limit=300'), []);
   const qs = per ? `?from=${per.start}&to=${per.end}&limit=200${fCliente ? '&clientId=' + fCliente : ''}${fEstado ? '&status=' + fEstado : ''}` : '';
@@ -78,7 +78,7 @@ function Programacion() {
   const abrirAsignar = async (o: any) => {
     try {
       const d = await api.get(`/maquila/ordenes/${o.id}`);
-      const cur = new Map((d.assignments ?? []).filter((a: any) => a.active).map((a: any) => [a.personId, a]));
+      const cur = new Map((d.assignments ?? []).filter((a: any) => a.active).map((a: any) => [a.personId, a] as [string, any]));
       setAsignar({ o: d, filas: (gente ?? []).map((p: any) => ({ personId: p.id, code: p.code, name: p.name, on: cur.has(p.id), qty: String(cur.get(p.id)?.qtyAssigned ?? '') })) });
     } catch (e: any) { toast(e.message, true); }
   };
@@ -148,7 +148,7 @@ function Programacion() {
 
 function Personas({ canEdit }: { canEdit: boolean }) {
   const { toast } = useApp();
-  const [q, setQ] = useState(''), [busy, setBusy] = useState(false), [key] = useState(newKey());
+  const [q, setQ] = useState(''), [busy, setBusy] = useState(false), [key] = useState(newKey);
   const { data, err, loading, reload } = useLoad<any[]>(() => api.get('/maquila/personas?limit=300' + (q ? '&q=' + encodeURIComponent(q) : '')), [q]);
   const rows = data ?? [];
   const crear = async (v: Record<string, any>) => {
