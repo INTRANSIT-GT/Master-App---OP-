@@ -6,7 +6,7 @@ import { RecordForm, type FieldDef } from '../records-ui';
 import { useApp } from '../store';
 import PeriodControls from './PeriodControls';
 
-type T = 'std' | 'cli' | 'items' | 'gen' | 'imp' | 'per' | 'usr' | 'aud';
+type T = 'std' | 'cli' | 'items' | 'gen' | 'imp' | 'per' | 'usr' | 'sec' | 'aud';
 export default function Ajustes() {
   const { can } = useApp();
   const [tab, setTab] = useState<T>('std');
@@ -14,8 +14,9 @@ export default function Ajustes() {
   if (can('importar')) items.push(['imp', 'Importar Excel']);
   items.push(['per', 'Periodos']);
   if (can('usuarios.gestionar')) items.push(['usr', 'Usuarios']);
+  if (can('ajustes.editar')) items.push(['sec', 'Secciones de Maquilas']);
   if (can('auditoria.ver')) items.push(['aud', 'Bitácora de cambios']);
-  return (<><Tabs sub items={items} value={tab} onChange={setTab} />{tab === 'std' && <Estandares />}{tab === 'cli' && <Clientes />}{tab === 'items' && <Articulos />}{tab === 'gen' && <General />}{tab === 'imp' && <Importar />}{tab === 'per' && <Periodos />}{tab === 'usr' && <Usuarios />}{tab === 'aud' && <Bitacora />}</>);
+  return (<><Tabs sub items={items} value={tab} onChange={setTab} />{tab === 'std' && <Estandares />}{tab === 'cli' && <Clientes />}{tab === 'items' && <Articulos />}{tab === 'gen' && <General />}{tab === 'imp' && <Importar />}{tab === 'per' && <Periodos />}{tab === 'usr' && <Usuarios />}{tab === 'sec' && <Secciones />}{tab === 'aud' && <Bitacora />}</>);
 }
 
 function Estandares() {
@@ -226,6 +227,28 @@ function Clientes() {
         <p className="muted">Nada se borra: los clientes y proyectos se desactivan y el historial se conserva.</p>
       </>}
     </>
+  );
+}
+function Secciones() {
+  const { toast } = useApp();
+  const { data, err, loading, reload } = useLoad<any>(() => api.get('/maquila/admin/secciones'), []);
+  const [busy, setBusy] = useState('');
+  const LBL: Record<string, string> = { administrador: 'Administrador', gerente_op: 'Gerente OP', supervisor_op: 'Supervisor OP', jefatura_op: 'Jefatura OP', coordinador: 'Coordinador', validador: 'Validador', facturacion: 'Facturación', cobros: 'Cobros', comercial: 'Comercial', supervisor: 'Supervisor (legado)', operador: 'Operador (legado)', consulta: 'Consulta' };
+  const toggle = async (perfil: string, seccion: string, habilitado: boolean) => {
+    setBusy(perfil + seccion);
+    try { await api.put(`/maquila/admin/secciones/${perfil}/${seccion}`, { habilitado }); toast('Visibilidad actualizada.'); reload(); }
+    catch (e: any) { toast(e.message, true); } finally { setBusy(''); }
+  };
+  return (
+    <Card title="Secciones de Maquilas" sub="Marca qué secciones ve cada perfil. Las acciones (crear, cerrar, validar, facturar) dependen de sus permisos y no se cambian aquí.">
+      <Loading err={err} loading={loading && !data} />
+      {data && <div className="tbl-wrap"><table className="tbl"><thead><tr><th>Sección</th>{data.perfiles.map((p: any) => <th key={p.key}>{LBL[p.key] ?? p.key}</th>)}</tr></thead><tbody>
+        {data.secciones.map((s: any) => <tr key={s.key}><td>{s.label}<div className="muted"><code>sec_maquila_{s.key}</code></div></td>
+          {data.perfiles.map((p: any) => <td key={p.key}><input type="checkbox" aria-label={`${s.label} · ${LBL[p.key] ?? p.key}`} checked={!!data.matriz.find((m: any) => m.perfil === p.key)?.secciones[s.key]} disabled={busy === p.key + s.key} onChange={(e) => toggle(p.key, s.key, e.target.checked)} /></td>)}
+        </tr>)}
+      </tbody></table></div>}
+      <p className="muted">La ausencia de fila equivale a visible. Al apagar una sección, el menú de Maquilas deja de mostrarla para ese perfil.</p>
+    </Card>
   );
 }
 void nf; void nf2; void q2;
