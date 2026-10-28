@@ -1,8 +1,8 @@
 # 10 · Maquilas e integración con Transportes
 
-Estado: **fase 1, solo en el repositorio de Operaciones**. Transportes no se modifica todavía.
-Autor: sesión de trabajo del 2026-10-28. Decisión de Ing. Carmen: Transportes debe salir a
-producción en ~1 semana; esta integración va después y se construye en paralelo.
+Estado: **fases 1–5 desplegadas en el Supabase de prueba y en Pages**. Transportes no se ha
+modificado. Autor: sesión de trabajo del 2026-10-28. Decisión de Ing. Carmen: Transportes debe
+salir a producción en ~1 semana; esta integración va después y se construye en paralelo.
 
 ## 1. Regla de trabajo en paralelo
 
@@ -152,15 +152,25 @@ sin convivencia. Las tarifas siguen separadas: `master.tarifas` para viajes y
 
 | Fase | Repo | Entrega | Estado |
 |---|---|---|---|
-| 1 | OP | esquema de maquilas y este contrato | **en curso** |
-| 2 | OP | perfiles, secciones y API de personas/órdenes | pendiente |
-| 3 | OP | asignación, inicio/fin, cierre y productividad | pendiente |
-| 4 | OP | validaciones SOP/jefatura/validador | pendiente |
-| 5 | OP | cargos y pantalla de facturación de maquilas | pendiente |
+| 1 | OP | esquema de maquilas y este contrato | **hecho** |
+| 2 | OP | perfiles, secciones y API de personas/órdenes | **hecho** |
+| 3 | OP | asignación, inicio/fin, cierre y productividad | **hecho** |
+| 4 | OP | validaciones SOP/jefatura/validador | **hecho** |
+| 5 | OP | cargos y pantalla de facturación de maquilas | **hecho** |
 | 6 | Transportes | perfiles de dos módulos y pantalla de Usuarios | **después de producción** |
 | 7 | Transportes | `origen/lineas`, factura de maquila y tablero consolidado | después de producción |
 | 8 | Ambos | clientes compartidos, migración de datos y pruebas de volumen | después de producción |
 | 9 | OP | sincronización con GEOVICTORIA | cuando la API esté disponible |
+
+### Estado desplegado al 2026-10-28
+
+- Migraciones **004–007** aplicadas en el Supabase de prueba (esquema `operaciones`).
+- Función **`operaciones`** desplegada; las rutas `/api/maquila/*` responden 401 sin token.
+- Web publicada en Pages: Maquilas con Programación, Personas, Validación y Facturación.
+- Tipos del servidor y de la web en verde; pruebas de la web 10/10.
+- Pruebas de integración del servidor pendientes: requieren PostgreSQL local.
+- El cargo queda **ABIERTO → CERRADO** y puede anularse; la factura y su número viven en el
+  módulo comercial compartido (fase 7, después de la salida a producción de Transportes).
 
 ## 5. Lista de «no tocar» hasta que Transportes esté en producción
 

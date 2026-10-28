@@ -270,3 +270,13 @@ Comando: `node scripts/intransit-startup.cjs` con JSON sintético por stdin, en 
 - **INTERPRETACIÓN:** el «cargo» de maquilas es la unidad que luego se agrupa; la factura y el número siguen viviendo en el módulo comercial. La fase 2 no factura todavía.
 - **No ejecutado en este equipo:** `tsc` y pruebas (no hay Node ni PostgreSQL instalados aquí). La migración y las pruebas quedan para correr en el equipo de desarrollo con `python scripts/reset-db-windows.py omnia_test` y `cd server && npm test`.
 - **No tocado:** repositorio `Master-App`, esquema `master`, función `api` y app de Transportes.
+
+### 2026-10-28 · Maquilas: fase 3 (validaciones y cargos) y despliegue
+
+- **Node:** instalado portable en `C:\Users\manue\AppData\Local\Temp\gencode\node\node-v22.23.4-win-x64` (no se instaló en el sistema). La CLI de Supabase 2.122.0 se instaló en ese Node y ya tenía sesión.
+- **Hecho (validaciones):** `POST /api/maquila/ordenes/:id/validar-sop | validar-jefatura | validar` con permisos `maquila.validar_sop`, `maquila.validar_jefatura`, `maquila.validar`; rechazo con motivo obligatorio; `POST /:id/reabrir` (rechazadas con `maquila.editar`; validadas solo con `maquila.reabrir`); `GET /api/maquila/validacion` para las cuatro bandejas.
+- **Hecho (cargos):** `maquila_statements`/líneas ya existentes; `POST /api/maquila/cargos` agrupa maquilas validadas del mismo cliente, toma la tarifa vigente de `billing_rates` y calcula importe; `GET /cargos`, `GET /cargos/:id`, `POST /:id/cerrar`, `POST /:id/anular` (libera las maquilas). Migraciones `006_cargos_anulacion.sql` (motivo/quién/cuándo) y `007_cargos_reagrupar.sql` (permite otro cargo del mismo periodo tras anular).
+- **Web:** Maquilas ahora tiene Programación, Personas, Validación y Facturación (por facturar + cargos). `Ajustes › Secciones de Maquilas` sigue disponible.
+- **Desplegado:** migraciones 004–007 aplicadas en Supabase (`bocgzjupocnvjehklxhs`); función `operaciones` desplegada; Pages sirviendo `app-CfYH2q5s.js`; `/api/maquila/*` responde 401 sin token.
+- **Verificado:** `tsc` del servidor y de la web en verde; pruebas de la web 10/10. **Pendiente:** pruebas de integración del servidor (`npm test`), que requieren PostgreSQL local; no se ejecutaron en este equipo.
+- **No tocado:** repositorio `Master-App`, esquema `master`, función `api` y app de Transportes.
