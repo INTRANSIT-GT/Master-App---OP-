@@ -4,7 +4,7 @@ import { asset, cfg, ownLogin } from './module';
 import { signOut } from './sso';
 
 export interface Sede { id: string; name: string }
-export interface Meta { user: { id: string; email: string; name: string; role: string; permissions: string[] }; demo: boolean; inicio: string; wmDiv: number; defaultMonth: string; today: string; areas: [string, string][]; summaryNames: Record<string, string>; lines: any[]; inventoryBaseDate: string | null; sede: Sede | null; sedes: Sede[]; authMode: 'local' | 'sso'; ssoUsers?: 'portal' | 'modulo'; portalUrl: string; module: { id: string; name: string; basePath: string } }
+export interface Meta { user: { id: string; email: string; name: string; role: string; permissions: string[] }; demo: boolean; inicio: string; wmDiv: number; defaultMonth: string; today: string; areas: [string, string][]; summaryNames: Record<string, string>; lines: any[]; inventoryBaseDate: string | null; sede: Sede | null; sedes: Sede[]; secciones?: string[]; authMode: 'local' | 'sso'; ssoUsers?: 'portal' | 'modulo'; portalUrl: string; module: { id: string; name: string; basePath: string } }
 interface Ctx {
   meta: Meta | null; can: (p: string) => boolean; month: string; setMonth: (m: string) => void; week: string; setWeek: (w: string) => void; refreshKey: number; refresh: () => void;
   toast: (msg: string, err?: boolean) => void; logout: () => void; reloadMeta: () => Promise<void>;

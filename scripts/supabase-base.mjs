@@ -26,6 +26,16 @@ function query(sql, label) {
   return out;
 }
 
+// La CLI imprime avisos («Initialising login role…») antes del JSON y, según la versión,
+// devuelve un arreglo de filas o un objeto { rows }. Se aceptan ambos.
+function rowsOf(out) {
+  const a = out.indexOf('['), o = out.indexOf('{');
+  const i = a >= 0 && (o < 0 || a < o) ? a : o;
+  if (i < 0) return [];
+  const parsed = JSON.parse(out.slice(i));
+  return Array.isArray(parsed) ? parsed : (parsed.rows ?? []);
+}
+
 function esquema() {
   const migs = fs.readdirSync(path.join(root, 'db', 'migrations')).filter((f) => f.endsWith('.sql')).sort();
   const sql = [
@@ -45,7 +55,7 @@ function esquema() {
 // cada migración pendiente en su propia transacción, igual que server/src/migrate.ts
 function migrar() {
   const out = query(`SELECT name FROM ${SCHEMA}.schema_migrations;`, 'aplicadas');
-  const done = new Set(JSON.parse(out.slice(out.indexOf('{'))).rows.map((r) => r.name));
+  const done = new Set(rowsOf(out).map((r) => r.name));
   const pend = fs.readdirSync(path.join(root, 'db', 'migrations')).filter((f) => f.endsWith('.sql') && !done.has(f)).sort();
   if (!pend.length) return console.log('Sin migraciones pendientes.');
   for (const f of pend) {

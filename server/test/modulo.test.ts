@@ -27,7 +27,7 @@ describe('ruta base /operaciones', () => {
     const r = await request(app).get('/operaciones/api/modulo');
     expect(r.status).toBe(200);
     expect(r.body).toMatchObject({ id: 'operaciones', nombre: 'Operaciones', basePath: '/operaciones', entrada: '/operaciones/', api: '/operaciones/api', authMode: 'local', asignacion: { claim: 'app_metadata.modulos', clave: 'operaciones' } });
-    expect(r.body.roles).toEqual(['administrador', 'supervisor', 'operador', 'consulta', 'comercial']);
+    expect(r.body.roles).toEqual(['administrador', 'supervisor', 'operador', 'consulta', 'comercial', 'coordinador', 'gerente_op', 'supervisor_op', 'jefatura_op', 'validador', 'facturacion', 'cobros']);
   });
   it('config.js publica la ruta base y ningún secreto', async () => {
     const r = await request(app).get('/operaciones/config.js');

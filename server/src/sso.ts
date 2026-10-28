@@ -3,7 +3,7 @@ import { config, MODULE_ID } from './config.js';
 import { HttpError } from './http.js';
 import type { Role } from './permissions.js';
 
-export const ROLES: Role[] = ['administrador', 'supervisor', 'operador', 'consulta', 'comercial'];
+export const ROLES: Role[] = ['administrador', 'supervisor', 'operador', 'consulta', 'comercial', 'coordinador', 'gerente_op', 'supervisor_op', 'jefatura_op', 'validador', 'facturacion', 'cobros'];
 
 export interface SsoUser { sub: string; email: string; name: string; role: Role }
 

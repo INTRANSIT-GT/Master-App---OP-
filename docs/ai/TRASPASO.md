@@ -260,3 +260,13 @@ Comando: `node scripts/intransit-startup.cjs` con JSON sintético por stdin, en 
 
 **No verificado:** escrituras en Supabase en otra sede (en vivo solo hubo lecturas; las escrituras por sede están cubiertas por las pruebas locales).
 **Pendiente:** asignar sedes al equipo en Ajustes › Usuarios; confirmar qué catálogos deben ser propios de cada sede. El servidor local viejo en :3001 (de una sesión anterior) sigue con el código previo; el nuevo corrió en :3011.
+
+## 2026-10-28 · Maquilas: fase 1 (esquema) y fase 2 (perfiles y API)
+
+**Solicitud (Ing. Carmen):** integrar Operaciones con Transportes como módulo separado, en repositorios distintos, para trabajar en paralelo mientras Transportes sale a producción en ~1 semana. Solo se autorizó commit en `Master-App---OP-`; Transportes no se toca.
+
+- **Hecho (fase 1):** `db/migrations/004_maquilas.sql` con `maquila_people`, `maquila_orders`, `maquila_assignments`, `maquila_validations`, `maquila_statements`, `maquila_statement_lines`, vistas `maquila_por_facturar` y `maquila_productividad`, candado de periodo que permite avanzar el estado después del cierre y no-borrado. `docs/10-maquilas-e-integracion.md` con el contrato: qué se construye en OP, qué se cambiará en Transportes después del lanzamiento y la lista de «no tocar».
+- **Hecho (fase 2):** migración `005_perfiles_secciones.sql` (roles `coordinador`, `gerente_op`, `supervisor_op`, `jefatura_op`, `validador`, `facturacion`, `cobros` y tabla `perfil_secciones`); `server/src/permissions.ts` con permisos `maquila.*`; `services/maquilas.ts` y `routes/maquilas.ts` (personas, órdenes, asignaciones, inicio, cierre, por facturar y matriz de secciones); `/api/meta` publica `secciones`; web con pestaña Maquilas (programación, personas, por facturar); pruebas `server/test/maquilas.test.ts`.
+- **INTERPRETACIÓN:** el «cargo» de maquilas es la unidad que luego se agrupa; la factura y el número siguen viviendo en el módulo comercial. La fase 2 no factura todavía.
+- **No ejecutado en este equipo:** `tsc` y pruebas (no hay Node ni PostgreSQL instalados aquí). La migración y las pruebas quedan para correr en el equipo de desarrollo con `python scripts/reset-db-windows.py omnia_test` y `cd server && npm test`.
+- **No tocado:** repositorio `Master-App`, esquema `master`, función `api` y app de Transportes.

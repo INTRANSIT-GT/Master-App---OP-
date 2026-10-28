@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api, hasToken, setSede, setToken } from './api';
 import { fmtDT } from './format';
 import { asset, cfg, ownLogin } from './module';
@@ -11,23 +11,25 @@ import Horas from './pages/Horas';
 import Compras from './pages/Compras';
 import Comercial from './pages/Comercial';
 import Inventario from './pages/Inventario';
+import Maquilas from './pages/Maquilas';
 import Ajustes from './pages/Ajustes';
 
 // Menú lateral con el mismo formato que Transportes (Master App): ícono + nombre, la opción activa resaltada.
 // Solo módulos operativos: Dashboard y Resumen se retiraron (el cierre de periodo vive en Ajustes › Periodos).
-const TABS = [['prod', 'Producción', 'factory'], ['horas', 'Horas y personal', 'users'], ['compras', 'Compras', 'cart'], ['inv', 'Inventario', 'box'], ['com', 'Comercial', 'dollar'], ['adj', 'Ajustes', 'gear']] as const;
+const TABS = [['prod', 'Producción', 'factory'], ['horas', 'Horas y personal', 'users'], ['compras', 'Compras', 'cart'], ['inv', 'Inventario', 'box'], ['com', 'Comercial', 'dollar'], ['maq', 'Maquilas', 'factory'], ['adj', 'Ajustes', 'gear']] as const;
 type Tab = (typeof TABS)[number][0];
 
 function Shell({ onLogout }: { onLogout: () => boolean | void }) {
   const { meta, month, logout, can, toast } = useApp();
   const sync = useSync();
-  const [tab, setTab] = useState<Tab>(() => (TABS.some((t) => t[0] === location.hash.slice(1)) ? (location.hash.slice(1) as Tab) : 'prod'));
+  const tabs = useMemo(() => TABS.filter((t) => (t[0] !== 'com' || can('comercial.ver')) && (t[0] !== 'maq' || can('maquila.ver'))), [can]);
+  const [tab, setTab] = useState<Tab>(() => (tabs.some((t) => t[0] === location.hash.slice(1)) ? (location.hash.slice(1) as Tab) : 'prod'));
   const [navOpen, setNavOpen] = useState(false);
   const [tema, setTema] = useState(temaActual);
   // sin elección guardada se sigue el sistema: si este cambia, el ícono del botón se actualiza
   useEffect(() => { try { const m = window.matchMedia('(prefers-color-scheme: dark)'), f = () => setTema(temaActual()); m.addEventListener('change', f); return () => m.removeEventListener('change', f); } catch { return undefined; } }, []);
   const mainRef = useRef<HTMLElement>(null);
-  useEffect(() => { const f = () => { const h = location.hash.slice(1) as Tab; if (TABS.some((t) => t[0] === h)) setTab(h); }; window.addEventListener('hashchange', f); return () => window.removeEventListener('hashchange', f); }, []);
+  useEffect(() => { const f = () => { const h = location.hash.slice(1) as Tab; if (tabs.some((t) => t[0] === h)) setTab(h); }; window.addEventListener('hashchange', f); return () => window.removeEventListener('hashchange', f); }, [tabs]);
   useEffect(() => { if (!navOpen) return; const f = (e: KeyboardEvent) => { if (e.key === 'Escape') setNavOpen(false); }; window.addEventListener('keydown', f); return () => window.removeEventListener('keydown', f); }, [navOpen]);
   // el contenido se desplaza dentro de <main>: al cambiar de pantalla se vuelve arriba
   const go = (t: Tab) => { setTab(t); location.hash = t; setNavOpen(false); mainRef.current?.scrollTo(0, 0); };
@@ -57,7 +59,7 @@ function Shell({ onLogout }: { onLogout: () => boolean | void }) {
       </header>
       <div className="body">
         <nav className="side" id="side-nav" aria-label="Navegación principal">
-          {TABS.filter((t) => t[0] !== 'com' || can('comercial.ver')).map(([k, n, ic]) => <button key={k} aria-current={k === tab ? 'page' : undefined} onClick={() => go(k)}><Icon name={ic} />{n}</button>)}
+          {tabs.map(([k, n, ic]) => <button key={k} aria-current={k === tab ? 'page' : undefined} onClick={() => go(k)}><Icon name={ic} />{n}</button>)}
         </nav>
         {navOpen && <div className="mback" onClick={() => setNavOpen(false)} />}
         <main id="main" className="main" ref={mainRef}><div className="inner">
@@ -66,6 +68,7 @@ function Shell({ onLogout }: { onLogout: () => boolean | void }) {
           {tab === 'compras' && <Compras />}
           {tab === 'com' && <Comercial />}
           {tab === 'inv' && <Inventario />}
+          {tab === 'maq' && <Maquilas />}
           {tab === 'adj' && <Ajustes />}
         </div></main>
       </div>
