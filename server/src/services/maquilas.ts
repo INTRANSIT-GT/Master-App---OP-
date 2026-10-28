@@ -5,8 +5,8 @@
 import { z } from 'zod';
 import { pool, tx, type Q } from '../db.js';
 import type { AuthUser } from '../auth.js';
-import { bad, conflict, notFound } from '../http.js';
-import { SECCIONES_MAQUILA, SECCION_KEYS, type SeccionMaquila } from '../permissions.js';
+import { HttpError, bad, conflict, notFound } from '../http.js';
+import { SECCIONES_MAQUILA, SECCION_KEYS, can, type SeccionMaquila } from '../permissions.js';
 import { ROLES } from '../sso.js';
 import { sedeDe } from '../sede.js';
 import { audit } from './audit.js';
@@ -60,6 +60,26 @@ export const closeSchema = z.object({
   personas: z.array(z.object({ personId: z.string().uuid(), qtyDone: num0 })).max(300).optional(),
   version: z.number().int().optional(),
 }).strict();
+
+export const validateSchema = z.object({
+  decision: z.enum(['APROBADA', 'RECHAZADA']),
+  reason: txt(500).optional(),
+}).strict().refine((v) => v.decision !== 'RECHAZADA' || (v.reason?.trim().length ?? 0) >= 5,
+  { message: 'El rechazo exige un motivo (mínimo 5 caracteres).', path: ['reason'] });
+
+export const reopenSchema = z.object({ reason: txt(500).min(5) }).strict();
+
+export const statementSchema = z.object({
+  clientId: z.string().uuid().optional(),
+  periodKind: z.enum(['SEMANA', 'MES', 'DEMANDA']),
+  periodKey: txt(20).min(1),
+  orderIds: z.array(z.string().uuid()).min(1).max(300),
+  notes: txt(500).optional(),
+}).strict();
+
+export const annulSchema = z.object({ reason: txt(500).min(5) }).strict();
+
+const r2 = (x: number) => Math.round(x * 100) / 100;
 
 const ORDER_COLS = `o.id, o.order_date AS "date", o.shift, o.status, o.sap, o.product_name AS "productName",
   o.unit, o.target_qty AS "targetQty", o.produced_qty AS "producedQty",
@@ -298,6 +318,156 @@ export async function listPorFacturar(sede: string, f: { from?: string; to?: str
      ORDER BY order_date, client_name LIMIT $6`,
     [sede, f.from ?? null, f.to ?? null, f.clientId ?? null, f.projectId ?? null, limit],
   )).rows;
+}
+
+// ───────── validaciones ─────────
+const ETAPA = {
+  SOP: { desde: 'CERRADA', hacia: 'VALIDADA_SOP' },
+  JEFATURA: { desde: 'VALIDADA_SOP', hacia: 'VALIDADA_JEFATURA' },
+  VALIDADOR: { desde: 'VALIDADA_JEFATURA', hacia: 'VALIDADA' },
+} as const;
+export type Etapa = keyof typeof ETAPA;
+
+export async function validateOrder(user: AuthUser, id: string, etapa: Etapa, b: z.infer<typeof validateSchema>) {
+  const sede = sedeDe(user);
+  await tx(async (c) => {
+    const cur = (await c.query('SELECT * FROM maquila_orders WHERE id = $1 AND sede_id = $2 FOR UPDATE', [id, sede])).rows[0];
+    if (!cur) throw notFound('Orden de maquila');
+    const t = ETAPA[etapa];
+    if (cur.status !== t.desde) throw conflict('ESTADO_INVALIDO', `La orden está en ${cur.status}; para ${etapa} debe estar en ${t.desde}.`);
+    if (b.decision === 'RECHAZADA' && (b.reason?.trim().length ?? 0) < 5) throw bad('El rechazo exige un motivo (mínimo 5 caracteres).');
+    await c.query('INSERT INTO maquila_validations (order_id, stage, decision, reason, user_id) VALUES ($1,$2,$3,$4,$5)',
+      [id, etapa, b.decision, b.reason?.trim() || null, user.id]);
+    const status = b.decision === 'APROBADA' ? t.hacia : 'RECHAZADA';
+    const final = etapa === 'VALIDADOR' && b.decision === 'APROBADA';
+    await c.query(`UPDATE maquila_orders SET status = $3,
+        validated_at = CASE WHEN $4 THEN now() ELSE NULL END,
+        validated_by = CASE WHEN $4 THEN $5 ELSE NULL END,
+        version = version + 1, updated_at = now()
+      WHERE id = $1 AND sede_id = $2`, [id, sede, status, final, user.id]);
+    await audit(c, user, 'maquila_orden', id, b.decision === 'APROBADA' ? `validar_${etapa.toLowerCase()}` : `rechazar_${etapa.toLowerCase()}`,
+      { status: cur.status }, { status, decision: b.decision, reason: b.reason?.trim() || null });
+  });
+  return getOrder(sede, id);
+}
+
+export async function reopenOrder(user: AuthUser, id: string, reason: string) {
+  const sede = sedeDe(user);
+  await tx(async (c) => {
+    const cur = (await c.query('SELECT * FROM maquila_orders WHERE id = $1 AND sede_id = $2 FOR UPDATE', [id, sede])).rows[0];
+    if (!cur) throw notFound('Orden de maquila');
+    if (['EN_CARGO', 'FACTURADA', 'COBRADA'].includes(cur.status)) throw conflict('ESTADO_INVALIDO', 'Anula el cargo o la factura antes de reabrir esta maquila.');
+    if (!['RECHAZADA', 'VALIDADA_SOP', 'VALIDADA_JEFATURA', 'VALIDADA'].includes(cur.status)) throw conflict('ESTADO_INVALIDO', 'Solo se reabre una maquila rechazada o validada.');
+    if (cur.status !== 'RECHAZADA' && !can(user.role, 'maquila.reabrir')) throw new HttpError(403, 'SIN_PERMISO', 'Tu rol no puede reabrir una maquila ya validada.');
+    await c.query(`UPDATE maquila_orders SET status = 'EN_PROCESO', finished_at = NULL, closed_at = NULL, closed_by = NULL,
+        validated_at = NULL, validated_by = NULL, version = version + 1, updated_at = now()
+      WHERE id = $1 AND sede_id = $2`, [id, sede]);
+    await audit(c, user, 'maquila_orden', id, 'reabrir', { status: cur.status }, { status: 'EN_PROCESO', reason });
+  });
+  return getOrder(sede, id);
+}
+
+export async function listValidacion(sede: string, f: { from?: string; to?: string; limit?: number }) {
+  const limit = Math.min(Math.max(f.limit ?? 200, 1), 200);
+  const out: Record<'SOP' | 'JEFATURA' | 'VALIDADOR' | 'RECHAZADA', any[]> = { SOP: [], JEFATURA: [], VALIDADOR: [], RECHAZADA: [] };
+  const stages: [keyof typeof out, string][] = [['SOP', 'CERRADA'], ['JEFATURA', 'VALIDADA_SOP'], ['VALIDADOR', 'VALIDADA_JEFATURA'], ['RECHAZADA', 'RECHAZADA']];
+  for (const [key, status] of stages) {
+    out[key] = (await pool.query(
+      `SELECT ${ORDER_COLS} ${ORDER_FROM}
+       WHERE o.sede_id = $1 AND o.status = $2
+         AND ($3::date IS NULL OR o.order_date >= $3) AND ($4::date IS NULL OR o.order_date <= $4)
+       ORDER BY o.order_date, o.created_at LIMIT $5`,
+      [sede, status, f.from ?? null, f.to ?? null, limit],
+    )).rows;
+  }
+  return out;
+}
+
+// ───────── cargos de facturación ─────────
+export async function createStatement(user: AuthUser, b: z.infer<typeof statementSchema>) {
+  const sede = sedeDe(user);
+  const id = await tx(async (c) => {
+    const ids = [...new Set(b.orderIds)];
+    if (ids.length !== b.orderIds.length) throw bad('La selección contiene maquilas repetidas.');
+    const orders = (await c.query('SELECT * FROM maquila_orders WHERE sede_id = $1 AND id = ANY($2::uuid[]) FOR UPDATE', [sede, ids])).rows;
+    if (orders.length !== ids.length) throw bad('Alguna maquila no existe o es de otra sede.');
+    const clientId = b.clientId ?? orders[0].client_id;
+    if (orders.some((o) => o.client_id !== clientId)) throw bad('Todas las maquilas del cargo deben ser del mismo cliente.');
+    for (const o of orders) {
+      if (o.status !== 'VALIDADA') throw conflict('ESTADO_INVALIDO', `La maquila ${o.id} no está validada (${o.status}).`);
+      if (o.statement_id) throw conflict('ESTADO_INVALIDO', `La maquila ${o.id} ya está en un cargo.`);
+    }
+    const dup = await c.query('SELECT id FROM maquila_statements WHERE sede_id = $1 AND client_id = $2 AND period_kind = $3 AND period_key = $4', [sede, clientId, b.periodKind, b.periodKey]);
+    if (dup.rowCount) throw conflict('DUPLICADO', 'Ya existe un cargo para ese cliente y periodo.');
+    const lineas: { orderId: string; qty: number; rate: number; amount: number }[] = [];
+    for (const o of orders) {
+      const rate = (await c.query(`SELECT rate FROM billing_rates WHERE project_id = $1 AND $2::date BETWEEN valid_from AND coalesce(valid_to, 'infinity'::date) ORDER BY valid_from DESC LIMIT 1`, [o.project_id, o.order_date])).rows[0];
+      if (!rate) throw bad(`La maquila ${o.id} no tiene tarifa vigente para su fecha (${o.order_date}). Define la tarifa en Comercial › Tarifas.`);
+      const qty = Number(o.produced_qty), amount = r2(qty * Number(rate.rate));
+      lineas.push({ orderId: o.id, qty, rate: Number(rate.rate), amount });
+    }
+    const total = r2(lineas.reduce((a, l) => a + l.amount, 0));
+    const st = (await c.query(`INSERT INTO maquila_statements (sede_id, client_id, period_kind, period_key, status, total, notes, created_by)
+        VALUES ($1,$2,$3,$4,'ABIERTO',$5,$6,$7) RETURNING id`, [sede, clientId, b.periodKind, b.periodKey, total, b.notes || null, user.id])).rows[0];
+    for (const l of lineas) {
+      await c.query('INSERT INTO maquila_statement_lines (statement_id, order_id, qty, rate, amount) VALUES ($1,$2,$3,$4,$5)', [st.id, l.orderId, l.qty, l.rate, l.amount]);
+      await c.query(`UPDATE maquila_orders SET statement_id = $2, status = 'EN_CARGO', version = version + 1, updated_at = now() WHERE id = $1`, [l.orderId, st.id]);
+    }
+    await audit(c, user, 'maquila_cargo', st.id, 'crear', null, { clientId, periodKind: b.periodKind, periodKey: b.periodKey, total, orders: ids });
+    return st.id as string;
+  });
+  return getStatement(sede, id);
+}
+
+export async function listStatements(sede: string, f: { status?: string; clientId?: string; limit?: number }) {
+  const limit = Math.min(Math.max(f.limit ?? 100, 1), 200);
+  return (await pool.query(
+    `SELECT s.id, s.client_id AS "clientId", c.name AS "clientName", s.period_kind AS "periodKind", s.period_key AS "periodKey",
+            s.status, s.total, s.invoice_id AS "invoiceId", s.closed_at AS "closedAt", s.void_reason AS "voidReason", s.created_at AS "createdAt",
+            (SELECT count(*)::int FROM maquila_statement_lines l WHERE l.statement_id = s.id AND l.active) AS "lines"
+     FROM maquila_statements s JOIN clients c ON c.id = s.client_id
+     WHERE s.sede_id = $1 AND ($2::text IS NULL OR s.status = $2) AND ($3::uuid IS NULL OR s.client_id = $3)
+     ORDER BY s.created_at DESC LIMIT $4`, [sede, f.status ?? null, f.clientId ?? null, limit])).rows;
+}
+
+export async function getStatement(sede: string, id: string) {
+  const s = (await pool.query(`SELECT s.id, s.client_id AS "clientId", c.name AS "clientName", s.period_kind AS "periodKind", s.period_key AS "periodKey",
+      s.status, s.total, s.invoice_id AS "invoiceId", s.closed_at AS "closedAt", s.void_reason AS "voidReason", s.created_at AS "createdAt"
+    FROM maquila_statements s JOIN clients c ON c.id = s.client_id WHERE s.id = $1 AND s.sede_id = $2`, [id, sede])).rows[0];
+  if (!s) throw notFound('Cargo de maquila');
+  const lines = (await pool.query(`SELECT l.id, l.order_id AS "orderId", l.qty, l.rate, l.amount, l.active,
+      o.order_date AS "date", o.sap, o.product_name AS "productName", o.unit, o.produced_qty AS "producedQty"
+    FROM maquila_statement_lines l JOIN maquila_orders o ON o.id = l.order_id
+    WHERE l.statement_id = $1 ORDER BY o.order_date`, [id])).rows;
+  return { ...s, lines };
+}
+
+export async function closeStatement(user: AuthUser, id: string) {
+  const sede = sedeDe(user);
+  await tx(async (c) => {
+    const cur = (await c.query('SELECT * FROM maquila_statements WHERE id = $1 AND sede_id = $2 FOR UPDATE', [id, sede])).rows[0];
+    if (!cur) throw notFound('Cargo de maquila');
+    if (cur.status !== 'ABIERTO') throw conflict('ESTADO_INVALIDO', 'Solo se cierra un cargo abierto.');
+    if (!(Number(cur.total) > 0)) throw bad('El cargo no tiene importe; revisa las tarifas antes de cerrarlo.');
+    await c.query(`UPDATE maquila_statements SET status = 'CERRADO', closed_at = now(), closed_by = $3, updated_at = now() WHERE id = $1 AND sede_id = $2`, [id, sede, user.id]);
+    await audit(c, user, 'maquila_cargo', id, 'cerrar', { status: cur.status }, { status: 'CERRADO', total: cur.total });
+  });
+  return getStatement(sede, id);
+}
+
+export async function annulStatement(user: AuthUser, id: string, reason: string) {
+  const sede = sedeDe(user);
+  await tx(async (c) => {
+    const cur = (await c.query('SELECT * FROM maquila_statements WHERE id = $1 AND sede_id = $2 FOR UPDATE', [id, sede])).rows[0];
+    if (!cur) throw notFound('Cargo de maquila');
+    if (['FACTURADO', 'COBRADO'].includes(cur.status)) throw conflict('ESTADO_INVALIDO', 'Un cargo facturado o cobrado se anula desde el módulo comercial.');
+    if (cur.status === 'ANULADO') throw conflict('ESTADO_INVALIDO', 'El cargo ya está anulado.');
+    await c.query(`UPDATE maquila_statements SET status = 'ANULADO', void_reason = $3, voided_by = $4, voided_at = now(), updated_at = now() WHERE id = $1 AND sede_id = $2`, [id, sede, reason.trim(), user.id]);
+    await c.query('UPDATE maquila_statement_lines SET active = false WHERE statement_id = $1 AND active', [id]);
+    await c.query(`UPDATE maquila_orders SET statement_id = NULL, status = 'VALIDADA', version = version + 1, updated_at = now() WHERE statement_id = $1`, [id]);
+    await audit(c, user, 'maquila_cargo', id, 'anular', { status: cur.status }, { status: 'ANULADO', reason: reason.trim() });
+  });
+  return getStatement(sede, id);
 }
 
 export async function seccionesDe(role: string): Promise<SeccionMaquila[]> {

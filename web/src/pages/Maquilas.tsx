@@ -1,11 +1,11 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { api, newKey } from '../api';
 import { Card, Loading, Modal, MonthBar, Pill, Tabs, useLoad } from '../components';
-import { fmtDate, fmtDT, nfx } from '../format';
+import { fmtDate, fmtDT, nfx, q2 } from '../format';
 import { RecordForm, usePeriod, type FieldDef } from '../records-ui';
 import { useApp } from '../store';
 
-type Sub = 'prog' | 'pers' | 'fact';
+type Sub = 'prog' | 'pers' | 'val' | 'fact';
 const ST: Record<string, { l: string; k: 'gray' | 'warn' | 'ok' | 'bad' | 'blue' }> = {
   PROGRAMADA: { l: 'Programada', k: 'gray' }, EN_PROCESO: { l: 'En proceso', k: 'blue' },
   CERRADA: { l: 'Cerrada', k: 'warn' }, VALIDADA_SOP: { l: 'Validada SOP', k: 'blue' },
@@ -21,7 +21,8 @@ export default function Maquilas() {
   const items: [Sub, string][] = [];
   if (visibles.includes('programacion') || visibles.includes('cierre')) items.push(['prog', 'Programación']);
   if (visibles.includes('personas')) items.push(['pers', 'Personas']);
-  if (visibles.includes('facturacion')) items.push(['fact', 'Por facturar']);
+  if (visibles.includes('validacion')) items.push(['val', 'Validación']);
+  if (visibles.includes('facturacion')) items.push(['fact', 'Facturación']);
   const [sub, setSub] = useState<Sub>(items[0]?.[0] ?? 'prog');
   if (!items.length) return <Card title="Maquilas"><p className="muted">Tu perfil no tiene secciones de Maquilas habilitadas. Pide acceso a un administrador.</p></Card>;
   return (
@@ -30,7 +31,8 @@ export default function Maquilas() {
       <Tabs sub items={items} value={sub} onChange={setSub} />
       {sub === 'prog' && <Programacion />}
       {sub === 'pers' && <Personas canEdit={can('maquila.personas')} />}
-      {sub === 'fact' && <PorFacturar />}
+      {sub === 'val' && <Validacion />}
+      {sub === 'fact' && <Facturacion />}
     </>
   );
 }
@@ -181,20 +183,163 @@ function Personas({ canEdit }: { canEdit: boolean }) {
   );
 }
 
-function PorFacturar() {
+function Validacion() {
+  const { can, toast, confirmBox } = useApp();
+  const per = usePeriod();
+  const qs = per ? `?from=${per.start}&to=${per.end}` : '';
+  const { data, err, loading, reload } = useLoad<Record<string, any[]>>(() => (qs ? api.get('/maquila/validacion' + qs) : Promise.resolve({})), [qs]);
+  const [rechazo, setRechazo] = useState<any>(null);
+  const [reapertura, setReapertura] = useState<any>(null);
+  const [busy, setBusy] = useState(false);
+  const etapas = [
+    { key: 'SOP', label: 'Pendientes de SOP', perm: 'maquila.validar_sop' },
+    { key: 'JEFATURA', label: 'Pendientes de jefatura', perm: 'maquila.validar_jefatura' },
+    { key: 'VALIDADOR', label: 'Pendientes del validador', perm: 'maquila.validar' },
+  ] as const;
+  const ruta = (stage: string) => (stage === 'VALIDADOR' ? 'validar' : `validar-${stage.toLowerCase()}`);
+  const aprobar = async (o: any, stage: string) => {
+    const c = await confirmBox({ title: 'Aprobar validación', text: `${o.clientName} · ${o.productName || o.sap || 'sin producto'} · ${nfx(o.producedQty)} ${o.unit}.`, okLabel: 'Aprobar' });
+    if (!c.ok) return;
+    try { await api.post(`/maquila/ordenes/${o.id}/${ruta(stage)}`, { decision: 'APROBADA' }); toast('Validación aprobada.'); reload(); }
+    catch (e: any) { toast(e.message, true); }
+  };
+  const rechazar = async () => {
+    if (!rechazo) return;
+    setBusy(true);
+    try { await api.post(`/maquila/ordenes/${rechazo.o.id}/${ruta(rechazo.stage)}`, { decision: 'RECHAZADA', reason: rechazo.motivo }); toast('Maquila rechazada.'); setRechazo(null); reload(); }
+    catch (e: any) { toast(e.message, true); } finally { setBusy(false); }
+  };
+  const reabrir = async () => {
+    if (!reapertura) return;
+    setBusy(true);
+    try { await api.post(`/maquila/ordenes/${reapertura.o.id}/reabrir`, { reason: reapertura.motivo }); toast('Maquila reabierta.'); setReapertura(null); reload(); }
+    catch (e: any) { toast(e.message, true); } finally { setBusy(false); }
+  };
+  const lista = (k: string) => data?.[k] ?? [];
+  return (
+    <>
+      <Card title="Validación de maquilas" sub="Cada etapa deja su registro. El rechazo exige un motivo y devuelve la maquila al coordinador.">
+        <Loading err={err} loading={loading && !data} />
+        {etapas.map((e) => {
+          const rows = lista(e.key);
+          return (
+            <div key={e.key} style={{ marginBottom: 20 }}>
+              <h4>{e.label} <span className="muted">({rows.length})</span></h4>
+              {!rows.length && <p className="muted">Sin pendientes.</p>}
+              {rows.length > 0 && <div className="tbl-wrap"><table className="tbl"><thead><tr><th>Fecha</th><th>Cliente / proyecto</th><th>Producto</th><th className="n">Producido</th><th>Estado</th><th /></tr></thead><tbody>
+                {rows.map((o: any) => <tr key={o.id}>
+                  <td>{fmtDate(o.date)}<div className="muted">{o.shift}</div></td>
+                  <td><b>{o.clientName}</b><div className="muted">{o.projectName}</div></td>
+                  <td>{o.sap && <span className="sap">{o.sap}</span>} {o.productName || '—'}</td>
+                  <td className="n">{nfx(o.producedQty)} {o.unit}</td>
+                  <td><Pill kind={est(o.status).k}>{est(o.status).l}</Pill></td>
+                  <td style={{ whiteSpace: 'nowrap' }}>
+                    {can(e.perm) && <><button className="btn btn-sm btn-blue" onClick={() => aprobar(o, e.key)}>Aprobar</button>{' '}<button className="btn btn-sm btn-danger" onClick={() => setRechazo({ o, stage: e.key, motivo: '' })}>Rechazar</button></>}
+                  </td>
+                </tr>)}
+              </tbody></table></div>}
+            </div>
+          );
+        })}
+        <h4>Rechazadas <span className="muted">({lista('RECHAZADA').length})</span></h4>
+        {!lista('RECHAZADA').length && <p className="muted">Sin rechazos.</p>}
+        {lista('RECHAZADA').length > 0 && <div className="tbl-wrap"><table className="tbl"><thead><tr><th>Fecha</th><th>Cliente / proyecto</th><th>Producto</th><th>Estado</th><th /></tr></thead><tbody>
+          {lista('RECHAZADA').map((o: any) => <tr key={o.id}><td>{fmtDate(o.date)}</td><td>{o.clientName} · {o.projectName}</td><td>{o.productName || o.sap || '—'}</td><td><Pill kind="bad">Rechazada</Pill></td><td>{can('maquila.editar') && <button className="btn btn-sm" onClick={() => setReapertura({ o, motivo: '' })}>Reabrir</button>}</td></tr>)}
+        </tbody></table></div>}
+      </Card>
+      {rechazo && <Modal title="Rechazar maquila" onClose={() => setRechazo(null)}>
+        <p className="muted">{rechazo.o.clientName} · {rechazo.o.productName || rechazo.o.sap || 'sin producto'}</p>
+        <label>Motivo del rechazo (obligatorio)<textarea rows={3} value={rechazo.motivo} onChange={(e) => setRechazo({ ...rechazo, motivo: e.target.value })} autoFocus /></label>
+        <div className="mact"><button className="btn" onClick={() => setRechazo(null)}>Cancelar</button><button className="btn btn-danger" disabled={busy || rechazo.motivo.trim().length < 5} onClick={rechazar}>Rechazar</button></div>
+      </Modal>}
+      {reapertura && <Modal title="Reabrir maquila" onClose={() => setReapertura(null)}>
+        <p className="muted">Vuelve a «en proceso» para corregir y cerrar de nuevo. Explica el motivo.</p>
+        <label>Motivo (obligatorio)<textarea rows={3} value={reapertura.motivo} onChange={(e) => setReapertura({ ...reapertura, motivo: e.target.value })} autoFocus /></label>
+        <div className="mact"><button className="btn" onClick={() => setReapertura(null)}>Cancelar</button><button className="btn btn-blue" disabled={busy || reapertura.motivo.trim().length < 5} onClick={reabrir}>Reabrir</button></div>
+      </Modal>}
+    </>
+  );
+}
+
+function Facturacion() {
+  const { can, toast, confirmBox } = useApp();
   const per = usePeriod();
   const qs = per ? `?from=${per.start}&to=${per.end}&limit=500` : '';
-  const { data, err, loading } = useLoad<any[]>(() => (qs ? api.get('/maquila/por-facturar' + qs) : Promise.resolve([])), [qs]);
-  const rows = data ?? [];
-  const total = useMemo(() => rows.length, [rows]);
+  const { data: pend, err, loading, reload: reloadPend } = useLoad<any[]>(() => (qs ? api.get('/maquila/por-facturar' + qs) : Promise.resolve([])), [qs]);
+  const { data: cargos, reload: reloadCargos } = useLoad<any[]>(() => api.get('/maquila/cargos?limit=200'), []);
+  const [sel, setSel] = useState<Set<string>>(new Set());
+  const [periodKind, setPeriodKind] = useState<'MES' | 'SEMANA' | 'DEMANDA'>('MES');
+  const [periodKey, setPeriodKey] = useState(per?.month ?? '');
+  const [notes, setNotes] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [anular, setAnular] = useState<any>(null);
+  const [key, setKey] = useState(newKey);
+  useEffect(() => { if (per?.month) setPeriodKey((k) => k || per.month); }, [per?.month]);
+  const rows = pend ?? [];
+  const selected = rows.filter((r) => sel.has(r.id));
+  const clientId = selected.length ? selected[0].clientId : undefined;
+  const mixed = selected.some((r) => r.clientId !== clientId);
+  const toggle = (id: string) => setSel((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+  const crear = async () => {
+    if (!selected.length) return toast('Selecciona al menos una maquila.', true);
+    if (mixed) return toast('Todas las maquilas deben ser del mismo cliente.', true);
+    setBusy(true);
+    try {
+      await api.post('/maquila/cargos', { clientId, periodKind, periodKey: periodKey.trim(), orderIds: selected.map((r) => r.id), notes: notes || undefined }, key);
+      toast('Cargo creado.'); setSel(new Set()); setNotes(''); setKey(newKey()); reloadPend(); reloadCargos();
+    } catch (e: any) { toast(e.message, true); } finally { setBusy(false); }
+  };
+  const cerrar = async (c: any) => {
+    const r = await confirmBox({ title: 'Cerrar cargo', text: `Se congela el cargo de ${c.clientName} por ${q2(c.total)}.`, okLabel: 'Cerrar cargo' });
+    if (!r.ok) return;
+    try { await api.post(`/maquila/cargos/${c.id}/cerrar`); toast('Cargo cerrado.'); reloadCargos(); }
+    catch (e: any) { toast(e.message, true); }
+  };
+  const anularCargo = async () => {
+    if (!anular) return;
+    setBusy(true);
+    try { await api.post(`/maquila/cargos/${anular.c.id}/anular`, { reason: anular.motivo }); toast('Cargo anulado; las maquilas vuelven a por facturar.'); setAnular(null); reloadPend(); reloadCargos(); }
+    catch (e: any) { toast(e.message, true); } finally { setBusy(false); }
+  };
   return (
-    <Card title="Maquilas validadas por facturar" sub={`${total} listas para agrupar en un cargo`}>
-      <p className="muted">La agrupación en cargo y la factura se habilitan en la fase de facturación. El número de factura se genera en el módulo comercial compartido.</p>
-      <Loading err={err} loading={loading && !data} />
-      {data && !rows.length && <p className="muted">No hay maquilas validadas pendientes en este periodo.</p>}
-      {rows.length > 0 && <div className="tbl-wrap"><table className="tbl"><thead><tr><th>Fecha</th><th>Cliente</th><th>Proyecto</th><th>Producto</th><th className="n">Cantidad</th><th>Validada</th></tr></thead><tbody>
-        {rows.map((r) => <tr key={r.id}><td>{fmtDate(r.date)}</td><td>{r.clientName}</td><td>{r.projectName}</td><td>{r.sap && <span className="sap">{r.sap}</span>} {r.productName || '—'}</td><td className="n">{nfx(r.producedQty)} {r.unit}</td><td>{r.validatedAt ? fmtDT(r.validatedAt) : '—'}</td></tr>)}
-      </tbody></table></div>}
-    </Card>
+    <>
+      <Card title="Maquilas validadas por facturar" sub={`${rows.length} disponibles`}>
+        <p className="muted">Selecciona maquilas del mismo cliente. El importe sale de la tarifa vigente del proyecto; si falta, el cargo se rechaza y hay que definirla en Comercial › Tarifas.</p>
+        <Loading err={err} loading={loading && !pend} />
+        {!rows.length && <p className="muted">No hay maquilas validadas pendientes en este periodo.</p>}
+        {rows.length > 0 && <>
+          <div className="form" style={{ marginBottom: 10 }}>
+            <div className="field"><label>Periodo</label><select value={periodKind} onChange={(e) => setPeriodKind(e.target.value as any)}><option value="MES">Mes</option><option value="SEMANA">Semana</option><option value="DEMANDA">Por demanda</option></select></div>
+            <div className="field"><label>Clave</label><input value={periodKey} onChange={(e) => setPeriodKey(e.target.value)} placeholder={periodKind === 'MES' ? '2026-10' : '2026-10-05'} /></div>
+            <div className="field w2"><label>Observación</label><input value={notes} onChange={(e) => setNotes(e.target.value)} /></div>
+            <div className="factions"><button className="btn btn-blue" disabled={busy || !selected.length || mixed || !periodKey.trim()} onClick={crear}>Crear cargo ({selected.length})</button></div>
+          </div>
+          {mixed && <div className="note">La selección mezcla clientes: un cargo solo puede ser de uno.</div>}
+          <div className="tbl-wrap"><table className="tbl"><thead><tr><th></th><th>Fecha</th><th>Cliente</th><th>Proyecto</th><th>Producto</th><th className="n">Cantidad</th><th>Validada</th></tr></thead><tbody>
+            {rows.map((r) => <tr key={r.id}><td><input type="checkbox" aria-label={`Seleccionar ${r.id}`} checked={sel.has(r.id)} onChange={() => toggle(r.id)} /></td><td>{fmtDate(r.date)}</td><td>{r.clientName}</td><td>{r.projectName}</td><td>{r.sap && <span className="sap">{r.sap}</span>} {r.productName || '—'}</td><td className="n">{nfx(r.producedQty)} {r.unit}</td><td>{r.validatedAt ? fmtDT(r.validatedAt) : '—'}</td></tr>)}
+          </tbody></table></div>
+        </>}
+      </Card>
+      <Card title="Cargos" sub={`${(cargos ?? []).length} cargos`}>
+        {!(cargos ?? []).length && <p className="muted">Sin cargos registrados.</p>}
+        {(cargos ?? []).length > 0 && <div className="tbl-wrap"><table className="tbl"><thead><tr><th>Cargo</th><th>Cliente</th><th>Periodo</th><th className="n">Maquilas</th><th className="n">Total</th><th>Estado</th><th /></tr></thead><tbody>
+          {(cargos ?? []).map((c) => <tr key={c.id}>
+            <td><code>{c.id.slice(0, 8)}</code><div className="muted">{fmtDT(c.createdAt)}</div></td>
+            <td>{c.clientName}</td><td>{c.periodKind} · {c.periodKey}</td><td className="n">{c.lines}</td><td className="n">{q2(c.total)}</td>
+            <td><Pill kind={c.status === 'ABIERTO' ? 'warn' : c.status === 'CERRADO' ? 'ok' : c.status === 'ANULADO' ? 'bad' : 'blue'}>{c.status}</Pill>{c.voidReason && <div className="muted">{c.voidReason}</div>}</td>
+            <td style={{ whiteSpace: 'nowrap' }}>
+              {c.status === 'ABIERTO' && can('maquila.agrupar') && <button className="btn btn-sm btn-blue" onClick={() => cerrar(c)}>Cerrar</button>}{' '}
+              {c.status !== 'ANULADO' && c.status !== 'FACTURADO' && c.status !== 'COBRADO' && can('maquila.anular') && <button className="btn btn-sm btn-danger" onClick={() => setAnular({ c, motivo: '' })}>Anular</button>}
+            </td>
+          </tr>)}
+        </tbody></table></div>}
+        <p className="muted">El número de factura se genera en el módulo comercial compartido (fase de integración con Transportes).</p>
+      </Card>
+      {anular && <Modal title="Anular cargo" onClose={() => setAnular(null)}>
+        <p className="muted">{anular.c.clientName} · {anular.c.periodKind} {anular.c.periodKey} · {q2(anular.c.total)}</p>
+        <label>Motivo (obligatorio)<textarea rows={3} value={anular.motivo} onChange={(e) => setAnular({ ...anular, motivo: e.target.value })} autoFocus /></label>
+        <div className="mact"><button className="btn" onClick={() => setAnular(null)}>Cancelar</button><button className="btn btn-danger" disabled={busy || anular.motivo.trim().length < 5} onClick={anularCargo}>Anular cargo</button></div>
+      </Modal>}
+    </>
   );
 }
