@@ -146,7 +146,7 @@ function Usuarios() {
   const { toast, meta } = useApp();
   const { data, err, loading, reload } = useLoad<any[]>(() => api.get('/usuarios'), []);
   const { data: sedes, reload: reloadSedes } = useLoad<{ id: string; name: string; active: boolean }[]>(() => api.get('/sedes'), []);
-  const ROLES = [['administrador', 'Administrador'], ['comercial', 'Comercial'], ['supervisor', 'Supervisor'], ['operador', 'Operador'], ['consulta', 'Consulta']];
+  const ROLES = [['administrador', 'Administrador'], ['gerente_op', 'Gerente OP'], ['supervisor_op', 'Supervisor OP'], ['jefatura_op', 'Jefatura OP'], ['coordinador', 'Coordinador'], ['validador', 'Validador'], ['facturacion', 'Facturación'], ['cobros', 'Cobros'], ['comercial', 'Comercial'], ['supervisor', 'Supervisor (legado)'], ['operador', 'Operador (legado)'], ['consulta', 'Consulta']];
   const patch = async (u: any, b: any) => { try { await api.patch('/usuarios/' + u.id, b); toast('Usuario actualizado.'); reload(); } catch (e: any) { toast(e.message, true); } };
   const toggleSede = (u: any, id: string, on: boolean) => patch(u, { sedes: on ? [...u.sedes, id] : u.sedes.filter((x: string) => x !== id) });
   // sso + modulo: Operaciones vive en Supabase y da acceso a cuentas de Supabase (las mismas de Transportes)

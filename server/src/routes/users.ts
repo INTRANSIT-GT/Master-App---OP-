@@ -14,7 +14,7 @@ const externa = () => conflict('GESTION_EXTERNA', 'Con sesión compartida, los u
 const directorio = () => config.authMode === 'sso' && config.ssoUsers === 'modulo';
 const cols = 'id, email, name, role, active, created_at AS "createdAt"';
 const localUser = async (q: Q, id: string) => (await q.query(`SELECT ${cols}, ${SEDES_DE('users.id')} FROM users WHERE id = $1`, [id])).rows[0];
-const ROLE = z.enum(['administrador', 'supervisor', 'operador', 'consulta', 'comercial']);
+const ROLE = z.enum(['administrador', 'supervisor', 'operador', 'consulta', 'comercial', 'coordinador', 'gerente_op', 'supervisor_op', 'jefatura_op', 'validador', 'facturacion', 'cobros']);
 // las sedes son de Operaciones: se asignan aquí en cualquier modo de sesión. Sin sedes, quien crea el usuario le da la suya.
 const SEDES = z.array(z.string()).max(50);
 const sinSedes = (role: string | undefined, sedes: string[] | undefined) => {

@@ -12,6 +12,7 @@ import { getEngine } from '../services/engineCache.js';
 import { excelReport, pdfReport } from '../services/exporter.js';
 import { closePeriod, listPeriods, precheck, reopenPeriod, setWeeks } from '../services/periods.js';
 import { tzToday } from '../services/records.js';
+import { seccionesDe } from '../services/maquilas.js';
 import { dashboard, monthReport, monthStr, parseMonth } from '../services/reports.js';
 import { getSettings } from '../services/store.js';
 
@@ -35,6 +36,7 @@ reportsRouter.get('/meta', need('ver'), async (req, res) => {
     user: { ...req.user, permissions: ROLE_PERMS[req.user!.role] }, demo: s.demo === true, sede, sedes, inicio: s.inicio, wmDiv: s.wmDiv,
     defaultMonth: sede ? monthStr(await defaultMonth(sede.id)) : null, today: tzToday(), areas: AREAS, summaryNames: RES_NAME,
     lines: eng?.d.lines ?? [], meses: MES, inventoryBaseDate: eng?.d.base.date ?? null,
+    secciones: await seccionesDe(req.user!.role),
     module: { id: MODULE_ID, name: MODULE_NAME, basePath: config.basePath }, authMode: config.authMode, ssoUsers: config.ssoUsers, portalUrl: config.portalUrl,
   });
 });
