@@ -397,7 +397,7 @@ export async function createStatement(user: AuthUser, b: z.infer<typeof statemen
       if (o.status !== 'VALIDADA') throw conflict('ESTADO_INVALIDO', `La maquila ${o.id} no está validada (${o.status}).`);
       if (o.statement_id) throw conflict('ESTADO_INVALIDO', `La maquila ${o.id} ya está en un cargo.`);
     }
-    const dup = await c.query('SELECT id FROM maquila_statements WHERE sede_id = $1 AND client_id = $2 AND period_kind = $3 AND period_key = $4', [sede, clientId, b.periodKind, b.periodKey]);
+    const dup = await c.query(`SELECT id FROM maquila_statements WHERE sede_id = $1 AND client_id = $2 AND period_kind = $3 AND period_key = $4 AND status <> 'ANULADO'`, [sede, clientId, b.periodKind, b.periodKey]);
     if (dup.rowCount) throw conflict('DUPLICADO', 'Ya existe un cargo para ese cliente y periodo.');
     const lineas: { orderId: string; qty: number; rate: number; amount: number }[] = [];
     for (const o of orders) {
