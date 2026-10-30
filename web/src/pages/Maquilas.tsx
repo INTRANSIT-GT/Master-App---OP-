@@ -14,6 +14,13 @@ const ST: Record<string, { l: string; k: 'gray' | 'warn' | 'ok' | 'bad' | 'blue'
   FACTURADA: { l: 'Facturada', k: 'ok' }, COBRADA: { l: 'Cobrada', k: 'ok' }, ANULADA: { l: 'Anulada', k: 'bad' },
 };
 const est = (s: string) => ST[s] ?? { l: s, k: 'gray' as const };
+const q2n = (x: number) => Math.round(x * 100) / 100;
+/** Cantidad por parte cuando el proyecto la desglosa (p. ej. Cartón A 120 · Cartón B 45). */
+function Desglose({ o }: { o: any }) {
+  const d = Object.entries(o.producedDetail ?? {});
+  return d.length ? <div className="muted">{d.map(([k, v]) => `${k} ${nfx(Number(v))}`).join(' · ')}</div> : null;
+}
+const proyecto = (o: any) => o.projectName + (o.activityName ? ' · ' + o.activityName : '') + (o.category === 'OUTSOURCING' ? ' (outsourcing)' : '');
 
 export default function Maquilas() {
   const { can, meta } = useApp();
@@ -41,18 +48,25 @@ function Programacion() {
   const { can, meta, toast, confirmBox } = useApp();
   const per = usePeriod();
   const [fCliente, setFCliente] = useState(''), [fEstado, setFEstado] = useState(''), [busy, setBusy] = useState(false);
-  const [cerrar, setCerrar] = useState<any>(null), [asignar, setAsignar] = useState<any>(null), [key] = useState(newKey);
+  const [cerrar, setCerrar] = useState<any>(null), [asignar, setAsignar] = useState<any>(null), [confirmar, setConfirmar] = useState<any>(null), [key] = useState(newKey);
+  const [selP, setSelP] = useState('');
   const { data: cat } = useLoad<any>(() => api.get('/catalogo'), []);
   const { data: gente } = useLoad<any[]>(() => api.get('/maquila/personas?active=true&limit=300'), []);
   const qs = per ? `?from=${per.start}&to=${per.end}&limit=200${fCliente ? '&clientId=' + fCliente : ''}${fEstado ? '&status=' + fEstado : ''}` : '';
   const { data, err, loading, reload } = useLoad<any>(() => (qs ? api.get('/maquila/ordenes' + qs) : Promise.resolve(null)), [qs]);
   const rows: any[] = data?.rows ?? [];
-  const clients: any[] = (cat?.clients ?? []).filter((c: any) => c.active);
-  const projects: any[] = (cat?.projects ?? []).filter((p: any) => p.active);
+  // cada sede trabaja sus propios proyectos (los clientes son comunes)
+  const projects: any[] = (cat?.projects ?? []).filter((p: any) => p.active && p.sedeId === meta?.sede?.id);
+  const clients: any[] = (cat?.clients ?? []).filter((c: any) => c.active && projects.some((p) => p.clientId === c.id));
+  const sp = projects.find((p) => p.id === selP), acts: any[] = (sp?.activities ?? []).filter((a: any) => a.active);
+  // los campos son siempre los mismos (RecordForm reinicia los valores si cambian); cambian opciones y textos según el proyecto
   const fields: FieldDef[] = [
     { k: 'date', label: 'Fecha', type: 'date', required: true },
     { k: 'shift', label: 'Turno', type: 'select', required: true, options: [['DIA', 'Día'], ['TARDE', 'Tarde'], ['NOCHE', 'Noche']] },
-    { k: 'projectId', label: 'Cliente / proyecto', type: 'select', required: true, w: 2, options: projects.map((p) => [p.id, `${clients.find((c) => c.id === p.clientId)?.name ?? '—'} · ${p.name}`]), onChange: (v, set) => { const p = projects.find((x) => x.id === v); if (p) set('unit', p.um ?? 'UNIDAD'); } },
+    { k: 'projectId', label: 'Cliente / proyecto', type: 'select', required: true, w: 2, options: projects.map((p) => [p.id, `${clients.find((c) => c.id === p.clientId)?.name ?? '—'} · ${p.name}${p.category === 'OUTSOURCING' ? ' (outsourcing)' : ''}`]),
+      onChange: (v, set) => { setSelP(v); const p = projects.find((x) => x.id === v); if (p) set('unit', p.um ?? 'UNIDAD'); const a = (p?.activities ?? []).filter((x: any) => x.active); set('activityId', a.length === 1 ? a[0].id : ''); } },
+    { k: 'activityId', label: 'Actividad', type: 'select', required: acts.length > 0, readOnly: !acts.length, options: acts.map((a) => [a.id, a.name]), hint: sp && !acts.length ? 'El proyecto no tiene actividades' : undefined },
+    { k: 'clientConfirmation', label: sp?.confirmLabel ?? 'Confirmación del cliente', type: 'text', w: 2, readOnly: !sp?.confirmLabel, hint: sp?.confirmLabel ? 'Necesaria para iniciar; puedes registrarla después' : sp ? 'No se requiere en este proyecto' : undefined },
     { k: 'sap', label: 'Producto (SAP)', type: 'text' },
     { k: 'productName', label: 'Descripción', type: 'text', w: 2 },
     { k: 'targetQty', label: 'Meta', type: 'num' },
@@ -63,7 +77,9 @@ function Programacion() {
     const p = projects.find((x) => x.id === v.projectId);
     if (!p) return toast('Selecciona el proyecto.', true);
     setBusy(true);
-    try { await api.post('/maquila/ordenes', { ...v, clientId: p.clientId }, key); toast('Orden programada.'); reload(); }
+    const body: Record<string, any> = { ...v, clientId: p.clientId };
+    for (const k of ['activityId', 'clientConfirmation']) if (!body[k]) delete body[k];
+    try { await api.post('/maquila/ordenes', body, key); toast('Orden programada.'); reload(); }
     catch (e: any) { toast(e.message, true); } finally { setBusy(false); }
   };
   const iniciar = async (o: any) => {
@@ -71,10 +87,22 @@ function Programacion() {
     if (!c.ok) return;
     try { await api.post(`/maquila/ordenes/${o.id}/iniciar`); toast('Maquila iniciada.'); reload(); } catch (e: any) { toast(e.message, true); }
   };
+  const partes = (o: any): string[] => o?.outputParts ?? [];
+  const sumaPartes = (c: any) => q2n(partes(c.o).reduce((a, k) => a + Number(c.det[k] || 0), 0));
   const guardarCierre = async () => {
     if (!cerrar) return;
     setBusy(true);
-    try { await api.post(`/maquila/ordenes/${cerrar.o.id}/cerrar`, { producedQty: Number(cerrar.cantidad || 0), notes: cerrar.notas || undefined, version: cerrar.o.version }); toast('Maquila cerrada.'); setCerrar(null); reload(); }
+    // con desglose (p. ej. cartón A/B/C) se envían las partes y el servidor suma la cantidad
+    const cant = partes(cerrar.o).length
+      ? { producedDetail: Object.fromEntries(partes(cerrar.o).map((k) => [k, Number(cerrar.det[k] || 0)])) }
+      : { producedQty: Number(cerrar.cantidad || 0) };
+    try { await api.post(`/maquila/ordenes/${cerrar.o.id}/cerrar`, { ...cant, notes: cerrar.notas || undefined, version: cerrar.o.version }); toast('Maquila cerrada.'); setCerrar(null); reload(); }
+    catch (e: any) { toast(e.message, true); } finally { setBusy(false); }
+  };
+  const guardarConfirmacion = async () => {
+    if (!confirmar) return;
+    setBusy(true);
+    try { await api.post(`/maquila/ordenes/${confirmar.o.id}/confirmar`, { text: confirmar.texto }); toast('Confirmación del cliente registrada.'); setConfirmar(null); reload(); }
     catch (e: any) { toast(e.message, true); } finally { setBusy(false); }
   };
   const abrirAsignar = async (o: any) => {
@@ -96,8 +124,11 @@ function Programacion() {
   return (
     <>
       {can('maquila.programar') && per?.status !== 'cerrado' && (
-        <Card title="Programar maquila" sub="Cliente, producto, turno y meta. Después asigna las personas.">
+        <Card title="Programar maquila" sub={`Proyectos de ${meta?.sede?.name ?? 'esta sede'}: cliente, actividad, producto, turno y meta. Después asigna las personas.`}>
+          {!projects.length && cat && <p className="muted">Esta sede no tiene proyectos activos. Agrégalos en Ajustes › Clientes y proyectos.</p>}
           <RecordForm fields={fields} initial={{ date: meta?.today, shift: 'DIA', unit: 'UNIDAD', targetQty: 0 }} onSubmit={crear} submitLabel="Programar" busy={busy} />
+          {sp?.processNotes && <div className="note" style={{ marginTop: 8 }}><b>Cómo se trabaja {sp.name}:</b> {sp.processNotes}</div>}
+          {sp && partes({ outputParts: sp.outputParts }).length > 0 && <p className="muted" style={{ marginTop: 6 }}>Al cerrar se registra la cantidad de cada parte: {sp.outputParts.join(', ')}.</p>}
         </Card>
       )}
       {per?.status === 'cerrado' && <div className="note">El periodo está cerrado: no se programan maquilas nuevas en estas fechas.</div>}
@@ -113,25 +144,37 @@ function Programacion() {
           {rows.map((o) => (
             <tr key={o.id}>
               <td>{fmtDate(o.date)}<div className="muted">{o.shift}</div></td>
-              <td><b>{o.clientName}</b><div className="muted">{o.projectName}</div></td>
+              <td><b>{o.clientName}</b><div className="muted">{proyecto(o)}</div>
+                {o.confirmLabel && (o.clientConfirmation ? <div className="muted" title={o.confirmLabel}>✓ {o.clientConfirmation}</div> : <Pill kind="warn">Falta confirmación del cliente</Pill>)}</td>
               <td>{o.sap && <span className="sap">{o.sap}</span>} {o.productName || '—'}</td>
               <td className="n">{nfx(o.targetQty)}</td>
-              <td className="n">{nfx(o.producedQty)} <span className="muted">{o.unit}</span></td>
+              <td className="n">{nfx(o.producedQty)} <span className="muted">{o.unit}</span><Desglose o={o} /></td>
               <td className="n">{o.people}</td>
               <td><Pill kind={est(o.status).k}>{est(o.status).l}</Pill>{o.startedAt && <div className="muted">{fmtDT(o.startedAt)}</div>}</td>
               <td style={{ whiteSpace: 'nowrap' }}>
                 {(o.status === 'PROGRAMADA' || o.status === 'EN_PROCESO') && can('maquila.asignar') && <button className="btn btn-sm" onClick={() => abrirAsignar(o)}>Asignar</button>}{' '}
-                {o.status === 'PROGRAMADA' && can('maquila.iniciar') && <button className="btn btn-sm btn-blue" onClick={() => iniciar(o)}>Iniciar</button>}{' '}
-                {o.status === 'EN_PROCESO' && can('maquila.cerrar') && <button className="btn btn-sm btn-blue" onClick={() => setCerrar({ o, cantidad: o.producedQty || '', notas: o.notes || '' })}>Cerrar</button>}
+                {o.status === 'PROGRAMADA' && o.confirmLabel && can('maquila.programar') && <button className="btn btn-sm" onClick={() => setConfirmar({ o, texto: o.clientConfirmation || '' })}>{o.clientConfirmation ? 'Cambiar confirmación' : 'Confirmar cliente'}</button>}{' '}
+                {o.status === 'PROGRAMADA' && can('maquila.iniciar') && <button className="btn btn-sm btn-blue" disabled={!!o.confirmLabel && !o.clientConfirmation} title={o.confirmLabel && !o.clientConfirmation ? 'Primero registra la confirmación del cliente' : undefined} onClick={() => iniciar(o)}>Iniciar</button>}{' '}
+                {o.status === 'EN_PROCESO' && can('maquila.cerrar') && <button className="btn btn-sm btn-blue" onClick={() => setCerrar({ o, cantidad: o.producedQty || '', det: { ...(o.producedDetail ?? {}) }, notas: o.notes || '' })}>Cerrar</button>}
               </td>
             </tr>))}
         </tbody></table></div>}
       </Card>
       {cerrar && <Modal title="Cerrar maquila" onClose={() => setCerrar(null)}>
         <p className="muted">{cerrar.o.clientName} · {cerrar.o.productName || cerrar.o.sap} · inicio {cerrar.o.startedAt ? fmtDT(cerrar.o.startedAt) : '—'}</p>
-        <label>Cantidad producida ({cerrar.o.unit})<input type="number" min="0" step="any" value={cerrar.cantidad} onChange={(e) => setCerrar({ ...cerrar, cantidad: e.target.value })} autoFocus /></label>
+        {partes(cerrar.o).length ? <>
+          <div className="form">{partes(cerrar.o).map((k, i) => <div className="field" key={k}><label htmlFor={'parte-' + i}>{k} ({cerrar.o.unit})</label>
+            <input id={'parte-' + i} type="number" min="0" step="any" value={cerrar.det[k] ?? ''} onChange={(e) => setCerrar({ ...cerrar, det: { ...cerrar.det, [k]: e.target.value } })} autoFocus={i === 0} /></div>)}</div>
+          <p><b>Total producido: {nfx(sumaPartes(cerrar))} {cerrar.o.unit}</b></p>
+        </> : <label>Cantidad producida ({cerrar.o.unit})<input type="number" min="0" step="any" value={cerrar.cantidad} onChange={(e) => setCerrar({ ...cerrar, cantidad: e.target.value })} autoFocus /></label>}
         <label>Observación<textarea rows={2} value={cerrar.notas} onChange={(e) => setCerrar({ ...cerrar, notas: e.target.value })} /></label>
         <div className="mact"><button className="btn" onClick={() => setCerrar(null)}>Cancelar</button><button className="btn btn-blue" disabled={busy} onClick={guardarCierre}>Cerrar maquila</button></div>
+      </Modal>}
+      {confirmar && <Modal title="Confirmación del cliente" onClose={() => setConfirmar(null)}>
+        <p className="muted">{confirmar.o.clientName} · {confirmar.o.projectName}</p>
+        {confirmar.o.processNotes && <div className="note">{confirmar.o.processNotes}</div>}
+        <label>{confirmar.o.confirmLabel}<input value={confirmar.texto} onChange={(e) => setConfirmar({ ...confirmar, texto: e.target.value })} autoFocus /></label>
+        <div className="mact"><button className="btn" onClick={() => setConfirmar(null)}>Cancelar</button><button className="btn btn-blue" disabled={busy || confirmar.texto.trim().length < 2} onClick={guardarConfirmacion}>Registrar confirmación</button></div>
       </Modal>}
       {asignar && <Modal title={`Asignar personas · ${asignar.o.clientName}`} onClose={() => setAsignar(null)} wide>
         {!asignar.filas.length && <p className="muted">No hay personas activas en esta sede. Agrégalas en la pestaña Personas.</p>}
@@ -229,9 +272,9 @@ function Validacion() {
               {rows.length > 0 && <div className="tbl-wrap"><table className="tbl"><thead><tr><th>Fecha</th><th>Cliente / proyecto</th><th>Producto</th><th className="n">Producido</th><th>Estado</th><th /></tr></thead><tbody>
                 {rows.map((o: any) => <tr key={o.id}>
                   <td>{fmtDate(o.date)}<div className="muted">{o.shift}</div></td>
-                  <td><b>{o.clientName}</b><div className="muted">{o.projectName}</div></td>
+                  <td><b>{o.clientName}</b><div className="muted">{proyecto(o)}</div></td>
                   <td>{o.sap && <span className="sap">{o.sap}</span>} {o.productName || '—'}</td>
-                  <td className="n">{nfx(o.producedQty)} {o.unit}</td>
+                  <td className="n">{nfx(o.producedQty)} {o.unit}<Desglose o={o} /></td>
                   <td><Pill kind={est(o.status).k}>{est(o.status).l}</Pill></td>
                   <td style={{ whiteSpace: 'nowrap' }}>
                     {can(e.perm) && <><button className="btn btn-sm btn-blue" onClick={() => aprobar(o, e.key)}>Aprobar</button>{' '}<button className="btn btn-sm btn-danger" onClick={() => setRechazo({ o, stage: e.key, motivo: '' })}>Rechazar</button></>}
@@ -244,7 +287,7 @@ function Validacion() {
         <h4>Rechazadas <span className="muted">({lista('RECHAZADA').length})</span></h4>
         {!lista('RECHAZADA').length && <p className="muted">Sin rechazos.</p>}
         {lista('RECHAZADA').length > 0 && <div className="tbl-wrap"><table className="tbl"><thead><tr><th>Fecha</th><th>Cliente / proyecto</th><th>Producto</th><th>Estado</th><th /></tr></thead><tbody>
-          {lista('RECHAZADA').map((o: any) => <tr key={o.id}><td>{fmtDate(o.date)}</td><td>{o.clientName} · {o.projectName}</td><td>{o.productName || o.sap || '—'}</td><td><Pill kind="bad">Rechazada</Pill></td><td>{can('maquila.editar') && <button className="btn btn-sm" onClick={() => setReapertura({ o, motivo: '' })}>Reabrir</button>}</td></tr>)}
+          {lista('RECHAZADA').map((o: any) => <tr key={o.id}><td>{fmtDate(o.date)}</td><td>{o.clientName} · {proyecto(o)}</td><td>{o.productName || o.sap || '—'}</td><td><Pill kind="bad">Rechazada</Pill></td><td>{can('maquila.editar') && <button className="btn btn-sm" onClick={() => setReapertura({ o, motivo: '' })}>Reabrir</button>}</td></tr>)}
         </tbody></table></div>}
       </Card>
       {rechazo && <Modal title="Rechazar maquila" onClose={() => setRechazo(null)}>
@@ -316,7 +359,7 @@ function Facturacion() {
           </div>
           {mixed && <div className="note">La selección mezcla clientes: un cargo solo puede ser de uno.</div>}
           <div className="tbl-wrap"><table className="tbl"><thead><tr><th></th><th>Fecha</th><th>Cliente</th><th>Proyecto</th><th>Producto</th><th className="n">Cantidad</th><th>Validada</th></tr></thead><tbody>
-            {rows.map((r) => <tr key={r.id}><td><input type="checkbox" aria-label={`Seleccionar ${r.id}`} checked={sel.has(r.id)} onChange={() => toggle(r.id)} /></td><td>{fmtDate(r.date)}</td><td>{r.clientName}</td><td>{r.projectName}</td><td>{r.sap && <span className="sap">{r.sap}</span>} {r.productName || '—'}</td><td className="n">{nfx(r.producedQty)} {r.unit}</td><td>{r.validatedAt ? fmtDT(r.validatedAt) : '—'}</td></tr>)}
+            {rows.map((r) => <tr key={r.id}><td><input type="checkbox" aria-label={`Seleccionar ${r.id}`} checked={sel.has(r.id)} onChange={() => toggle(r.id)} /></td><td>{fmtDate(r.date)}</td><td>{r.clientName}</td><td>{proyecto(r)}</td><td>{r.sap && <span className="sap">{r.sap}</span>} {r.productName || '—'}</td><td className="n">{nfx(r.producedQty)} {r.unit}<Desglose o={r} /></td><td>{r.validatedAt ? fmtDT(r.validatedAt) : '—'}</td></tr>)}
           </tbody></table></div>
         </>}
       </Card>

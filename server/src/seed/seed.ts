@@ -81,8 +81,9 @@ export async function seedDemo(c: PoolClient) {
 
 /** Datos de demostración v2 (clientes distintos de Fritolay, tarifas de cobro, insumos y órdenes de compra). Solo desde `npm run seed`. */
 export async function seedDemoV2(c: PoolClient) {
-  const proj = (await c.query(`SELECT p.id, p.code, c.code AS ccode FROM projects p JOIN clients c ON c.id = p.client_id WHERE p.kinds[1] = 'gen'`)).rows;
+  const proj = (await c.query(`SELECT p.id, p.code, p.sede_id, c.code AS ccode FROM projects p JOIN clients c ON c.id = p.client_id WHERE p.kinds[1] = 'gen'`)).rows;
   const P = (cc: string, code: string) => proj.find((x) => x.ccode === cc && x.code === code)!.id as string;
+  const sedeOf = (pid: string) => proj.find((x) => x.id === pid)!.sede_id as string;   // cada registro va a la sede de su proyecto
   const gen: [string, string, string, number, string][] = [
     ['COCACOLA', 'ENV', '2026-10-06', 1200, 'TR-001'], ['COCACOLA', 'ENV', '2026-10-13', 1850, 'TR-002'], ['COCACOLA', 'TAR', '2026-10-08', 64, 'TR-003'], ['COCACOLA', 'PACKS', '2026-10-15', 420, 'PK-010'],
     ['COCACOLA', 'DESARME', '2026-10-20', 36, 'DS-004'], ['ALNOST', 'VF', '2026-10-07', 310, 'VF-101'], ['ALNOST', 'VF', '2026-10-14', 275, 'VF-102'], ['XPORTA', 'VF', '2026-10-09', 540, 'XP-201'],
@@ -91,7 +92,7 @@ export async function seedDemoV2(c: PoolClient) {
   const batch = (await c.query(`INSERT INTO import_batches (source, file_name, status, stats, applied_at, sede_id) VALUES ('demo','demo-v2','aplicado','{}', now(), $1) RETURNING id`, [SEDE])).rows[0].id;
   for (const [cc, code, date, qty, ref] of gen) {
     const pid = P(cc, code), key = naturalKey(['gen', pid, date, ref, qty]) + '#1';
-    await c.query(`INSERT INTO production_records (kind, project_id, record_date, ref_doc, boxes, source, source_key, is_demo, import_batch_id, notes, sede_id) VALUES ('gen',$1,$2,$3,$4,'demo',$5,true,$6,'Registro de demostración',$7) ON CONFLICT DO NOTHING`, [pid, date, ref, qty, key, batch, SEDE]);
+    await c.query(`INSERT INTO production_records (kind, project_id, record_date, ref_doc, boxes, source, source_key, is_demo, import_batch_id, notes, sede_id) VALUES ('gen',$1,$2,$3,$4,'demo',$5,true,$6,'Registro de demostración',$7) ON CONFLICT DO NOTHING`, [pid, date, ref, qty, key, batch, sedeOf(pid)]);
   }
   const rates: [string, string, string, number, string][] = [['COCACOLA', 'ENV', 'UNIDAD', 0.35, ''], ['COCACOLA', 'TAR', 'TARIMA', 18, ''], ['COCACOLA', 'PACKS', 'PACK', 1.9, ''], ['ALNOST', 'VF', 'CAJA', 0.8, ''], ['LICORERA', 'ETQ', 'UNIDAD', 0.22, '']];
   for (const [cc, code, unit, rate] of rates)

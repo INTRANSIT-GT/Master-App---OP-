@@ -46,6 +46,8 @@ export default function Produccion() {
   const per = usePeriod(); const closed = per?.status === 'cerrado';
   const { data: cat } = useLoad<any>(() => api.get('/catalogo'), []);
   const clients: any[] = (cat?.clients ?? []).filter((c: any) => c.active), projects: any[] = cat?.projects ?? [];
+  // para elegir, solo los proyectos de la sede actual (y sus clientes); el historial conserva los nombres de todos
+  const sedeProj = projects.filter((p) => p.sedeId === meta?.sede?.id), sedeCli = clients.filter((c) => sedeProj.some((p) => p.clientId === c.id));
   const [fc, setFc] = useState(''), [fp, setFp] = useState(''), [showVoid, setShowVoid] = useState(false), [adding, setAdding] = useState(false), [edit, setEdit] = useState<any>(null);
   const projIds = useMemo(() => (fp ? [fp] : fc ? projects.filter((p) => p.clientId === fc).map((p) => p.id) : []), [fc, fp, projects]);
   const url = per ? `/produccion?from=${per.start}&to=${per.end}&limit=500${projIds.length ? '&project=' + projIds.join(',') : ''}` : '';
@@ -73,8 +75,8 @@ export default function Produccion() {
       <datalist id="presList"><option>FLUS</option><option>GALLETA</option><option>QUAKER</option><option>WALMART</option><option>SALADO</option></datalist>
       <Card title="Registros de producción" sub={`${rows.length} registros en ${per?.month ?? ''}`}
         actions={<div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-          <select aria-label="Filtrar por cliente" value={fc} onChange={(e) => { setFc(e.target.value); setFp(''); }}><option value="">Todos los clientes</option>{clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select>
-          <select aria-label="Filtrar por proyecto" value={fp} onChange={(e) => setFp(e.target.value)} disabled={!fc}><option value="">Todos los proyectos</option>{projects.filter((p) => p.clientId === fc).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select>
+          <select aria-label="Filtrar por cliente" value={fc} onChange={(e) => { setFc(e.target.value); setFp(''); }}><option value="">Todos los clientes</option>{sedeCli.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select>
+          <select aria-label="Filtrar por proyecto" value={fp} onChange={(e) => setFp(e.target.value)} disabled={!fc}><option value="">Todos los proyectos</option>{sedeProj.filter((p) => p.clientId === fc).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select>
           <label className="chk" style={{ fontSize: 13 }}><input type="checkbox" checked={showVoid} onChange={(e) => setShowVoid(e.target.checked)} /> Ver anulados</label>
           {can('registro.crear') && <button className="btn btn-primary big-btn" onClick={() => setAdding(true)} disabled={!cat}>＋ Añadir nuevo registro</button>}
         </div>}>
@@ -94,7 +96,7 @@ export default function Produccion() {
         </tbody></table></div>}
         <p className="muted" style={{ marginTop: 8 }}>Los registros no se borran: se modifican (con motivo) o se anulan, y cada cambio queda en la bitácora.</p>
       </Card>
-      {adding && <NewRecord clients={clients} projects={projects} products={products} labels={labels} today={meta?.today ?? ''} onClose={() => setAdding(false)} onSaved={() => { reload(); refresh(); }} />}
+      {adding && <NewRecord clients={sedeCli} projects={sedeProj} products={products} labels={labels} today={meta?.today ?? ''} onClose={() => setAdding(false)} onSaved={() => { reload(); refresh(); }} />}
       {edit && editProj && <Modal title={`Editar · ${editProj.name}`} onClose={() => setEdit(null)} wide>
         <RecordForm fields={fieldsFor(edit.kind, { products, labels, um: editProj.um }).fields} initial={{ ...edit, date: edit.recordDate }} onSubmit={saveEdit} submitLabel="Guardar cambio" />
         <div className="mact"><button className="btn" onClick={() => setEdit(null)}>Cancelar</button></div></Modal>}

@@ -5,8 +5,15 @@ import { pool, tx } from '../db.js';
 import { bad, conflict, notFound, parse } from '../http.js';
 import { audit } from '../services/audit.js';
 import { getSettings } from '../services/store.js';
+import { sedeDe } from '../sede.js';
 
 export const catalogRouter = Router();
+
+// Los proyectos son de una sede (los clientes, comunes). Se devuelven todos con su sedeId para que el historial conserve
+// sus nombres; las listas para elegir muestran solo los de la sede actual.
+const PROJ_COLS = `id, client_id AS "clientId", sede_id AS "sedeId", code, name, kinds, um, active, sort, category,
+  process_notes AS "processNotes", confirm_label AS "confirmLabel", output_parts AS "outputParts"`;
+const ACT_COLS = 'id, project_id AS "projectId", code, name, active, sort';
 
 catalogRouter.get('/catalogo', need('ver'), async (_req, res) => {
   const [lines, products, standards, items, bag, mats, settings, clients, projects] = await Promise.all([
@@ -18,9 +25,11 @@ catalogRouter.get('/catalogo', need('ver'), async (_req, res) => {
     pool.query('SELECT id, sap, name, label, confirmed, aliases FROM material_labels ORDER BY confirmed, name'),
     getSettings(pool),
     pool.query('SELECT id, code, name, active, sort FROM clients ORDER BY sort, name'),
-    pool.query('SELECT id, client_id AS "clientId", code, name, kinds, um, active, sort FROM projects ORDER BY sort, name'),
+    pool.query(`SELECT ${PROJ_COLS} FROM projects ORDER BY sort, name`),
   ]);
-  res.json({ clients: clients.rows, projects: projects.rows, lines: lines.rows, products: products.rows, standards: standards.rows, items: items.rows, bagUsage: bag.rows, materialLabels: mats.rows, settings });
+  const acts = (await pool.query(`SELECT ${ACT_COLS} FROM project_activities ORDER BY sort, name`)).rows;
+  const projs = projects.rows.map((p) => ({ ...p, activities: acts.filter((a) => a.projectId === p.id) }));
+  res.json({ clients: clients.rows, projects: projs, lines: lines.rows, products: products.rows, standards: standards.rows, items: items.rows, bagUsage: bag.rows, materialLabels: mats.rows, settings });
 });
 
 catalogRouter.post('/catalogo/productos', need('catalogo.editar'), async (req, res) => {
@@ -145,21 +154,57 @@ catalogRouter.patch('/catalogo/clientes/:id', need('catalogo.editar'), async (re
     await audit(c, req.user!, 'cliente', cur.id, 'editar', cur, r.rows[0]); return r.rows[0];
   }));
 });
+// proyecto: nota de proceso (se muestra al programar), confirmación previa del cliente (vacía = no requiere)
+// y partes del desglose de la cantidad producida (p. ej. cartón A/B/C; vacía = una sola cantidad)
+const projExtra = {
+  category: z.enum(['MAQUILA', 'OUTSOURCING']).optional(),   // categoría de servicio; Maquila es la principal
+  processNotes: z.string().trim().max(1000).nullable().optional(),
+  confirmLabel: z.string().trim().max(120).nullable().optional(),
+  outputParts: z.array(z.string().trim().min(1).max(40)).max(12).optional()
+    .refine((v) => !v || new Set(v.map((x) => x.toUpperCase())).size === v.length, 'Las partes del desglose no se repiten.'),
+};
 catalogRouter.post('/catalogo/proyectos', need('catalogo.editar'), async (req, res) => {
-  const b = parse(z.object({ clientId: z.string().uuid(), name: z.string().trim().min(2).max(120), um: z.string().trim().min(1).max(20).default('UNIDAD') }), req.body);
+  const b = parse(z.object({ clientId: z.string().uuid(), name: z.string().trim().min(2).max(120), um: z.string().trim().min(1).max(20).default('UNIDAD'), ...projExtra }), req.body);
+  const sede = sedeDe(req.user!);   // el proyecto nace en la sede en la que se trabaja
   res.status(201).json(await tx(async (c) => {
     if (!(await c.query('SELECT 1 FROM clients WHERE id = $1', [b.clientId])).rowCount) throw notFound('Cliente');
-    const sort = (await c.query('SELECT coalesce(max(sort),0)+1 n FROM projects WHERE client_id = $1', [b.clientId])).rows[0].n;
-    const r = await c.query(`INSERT INTO projects (client_id, code, name, kinds, um, sort) VALUES ($1,$2,$3,ARRAY['gen'],$4,$5) RETURNING id, client_id AS "clientId", code, name, kinds, um, active, sort`, [b.clientId, codeOf(b.name), b.name, b.um.toUpperCase(), sort]);
-    await audit(c, req.user!, 'proyecto', r.rows[0].id, 'crear', null, r.rows[0]); return r.rows[0];
+    const code = codeOf(b.name);
+    if ((await c.query('SELECT 1 FROM projects WHERE sede_id = $1 AND client_id = $2 AND code = $3', [sede, b.clientId, code])).rowCount) throw conflict('DUPLICADO', 'Ese cliente ya tiene un proyecto con ese nombre en esta sede.');
+    const sort = (await c.query('SELECT coalesce(max(sort),0)+1 n FROM projects WHERE client_id = $1 AND sede_id = $2', [b.clientId, sede])).rows[0].n;
+    const r = await c.query(`INSERT INTO projects (sede_id, client_id, code, name, kinds, um, sort, process_notes, confirm_label, output_parts, category) VALUES ($1,$2,$3,$4,ARRAY['gen'],$5,$6,$7,$8,$9,$10) RETURNING ${PROJ_COLS}`,
+      [sede, b.clientId, code, b.name, b.um.toUpperCase(), sort, b.processNotes || null, b.confirmLabel || null, b.outputParts ?? [], b.category ?? 'MAQUILA']);
+    await audit(c, req.user!, 'proyecto', r.rows[0].id, 'crear', null, r.rows[0]); return { ...r.rows[0], activities: [] };
   }));
 });
 catalogRouter.patch('/catalogo/proyectos/:id', need('catalogo.editar'), async (req, res) => {
-  const b = parse(z.object({ name: z.string().trim().min(2).max(120).optional(), um: z.string().trim().min(1).max(20).optional(), active: z.boolean().optional() }).strict(), req.body);
+  const b = parse(z.object({ name: z.string().trim().min(2).max(120).optional(), um: z.string().trim().min(1).max(20).optional(), active: z.boolean().optional(), ...projExtra }).strict(), req.body);
   res.json(await tx(async (c) => {
     const cur = (await c.query('SELECT * FROM projects WHERE id = $1 FOR UPDATE', [req.params.id])).rows[0]; if (!cur) throw notFound('Proyecto');
-    const r = await c.query(`UPDATE projects SET name = coalesce($2,name), um = coalesce($3,um), active = coalesce($4,active) WHERE id = $1 RETURNING id, client_id AS "clientId", code, name, kinds, um, active, sort`, [req.params.id, b.name ?? null, b.um?.toUpperCase() ?? null, b.active ?? null]);
+    const keep = (v: string | null | undefined, prev: string | null) => (v === undefined ? prev : v || null);   // sin enviar se conserva; '' o null la quita
+    const r = await c.query(`UPDATE projects SET name = coalesce($2,name), um = coalesce($3,um), active = coalesce($4,active),
+        process_notes = $5, confirm_label = $6, output_parts = coalesce($7, output_parts), category = coalesce($8, category) WHERE id = $1 RETURNING ${PROJ_COLS}`,
+      [req.params.id, b.name ?? null, b.um?.toUpperCase() ?? null, b.active ?? null, keep(b.processNotes, cur.process_notes), keep(b.confirmLabel, cur.confirm_label), b.outputParts ?? null, b.category ?? null]);
     await audit(c, req.user!, 'proyecto', cur.id, 'editar', cur, r.rows[0]); return r.rows[0];
+  }));
+});
+// actividades de un proyecto (p. ej. Walmart: revisión, trasiego, cambio de etiqueta, flejado); se desactivan, no se borran
+catalogRouter.post('/catalogo/proyectos/:id/actividades', need('catalogo.editar'), async (req, res) => {
+  const b = parse(z.object({ name: z.string().trim().min(2).max(120) }), req.body);
+  res.status(201).json(await tx(async (c) => {
+    if (!(await c.query('SELECT 1 FROM projects WHERE id = $1', [req.params.id])).rowCount) throw notFound('Proyecto');
+    const code = codeOf(b.name);
+    if ((await c.query('SELECT 1 FROM project_activities WHERE project_id = $1 AND code = $2', [req.params.id, code])).rowCount) throw conflict('DUPLICADO', 'El proyecto ya tiene esa actividad.');
+    const sort = (await c.query('SELECT coalesce(max(sort),0)+1 n FROM project_activities WHERE project_id = $1', [req.params.id])).rows[0].n;
+    const r = await c.query(`INSERT INTO project_activities (project_id, code, name, sort) VALUES ($1,$2,$3,$4) RETURNING ${ACT_COLS}`, [req.params.id, code, b.name, sort]);
+    await audit(c, req.user!, 'actividad', r.rows[0].id, 'crear', null, r.rows[0]); return r.rows[0];
+  }));
+});
+catalogRouter.patch('/catalogo/actividades/:id', need('catalogo.editar'), async (req, res) => {
+  const b = parse(z.object({ name: z.string().trim().min(2).max(120).optional(), active: z.boolean().optional() }).strict(), req.body);
+  res.json(await tx(async (c) => {
+    const cur = (await c.query('SELECT * FROM project_activities WHERE id = $1 FOR UPDATE', [req.params.id])).rows[0]; if (!cur) throw notFound('Actividad');
+    const r = await c.query(`UPDATE project_activities SET name = coalesce($2,name), active = coalesce($3,active) WHERE id = $1 RETURNING ${ACT_COLS}`, [req.params.id, b.name ?? null, b.active ?? null]);
+    await audit(c, req.user!, 'actividad', cur.id, 'editar', cur, r.rows[0]); return r.rows[0];
   }));
 });
 // insumos (inventario de insumos conectado a órdenes de compra y producción)

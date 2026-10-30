@@ -4,7 +4,7 @@ import { need } from '../auth.js';
 import { parse } from '../http.js';
 import { idempotent } from '../idempotency.js';
 import {
-  annulSchema, annulStatement, assignmentsSchema, closeOrder, closeSchema, closeStatement, createOrder, createPerson,
+  annulSchema, annulStatement, assignmentsSchema, closeOrder, closeSchema, closeStatement, confirmOrder, confirmSchema, createOrder, createPerson,
   createStatement, getOrder, getStatement, listOrders, listPeople, listPorFacturar, listStatements, listValidacion, matrizSecciones,
   orderPatchSchema, orderSchema, personPatchSchema, personSchema, reopenOrder, reopenSchema, replaceAssignments,
   seccionesDe, setSeccion, startOrder, startSchema, statementSchema, updateOrder, updatePerson, validateOrder, validateSchema,
@@ -50,6 +50,9 @@ maquilasRouter.put('/maquila/ordenes/:id/asignaciones', need('maquila.asignar'),
 maquilasRouter.post('/maquila/ordenes/:id/iniciar', need('maquila.iniciar'), async (req, res) => {
   const b = parse(startSchema, req.body ?? {});
   res.json(await startOrder(req.user!, req.params.id as string, b.startedAt));
+});
+maquilasRouter.post('/maquila/ordenes/:id/confirmar', need('maquila.programar'), async (req, res) => {
+  res.json(await confirmOrder(req.user!, req.params.id as string, parse(confirmSchema, req.body)));
 });
 maquilasRouter.post('/maquila/ordenes/:id/cerrar', need('maquila.cerrar'), async (req, res) => {
   res.json(await closeOrder(req.user!, req.params.id as string, parse(closeSchema, req.body ?? {})));

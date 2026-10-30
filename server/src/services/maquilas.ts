@@ -29,6 +29,8 @@ export const orderSchema = z.object({
   shift: z.enum(['DIA', 'TARDE', 'NOCHE']).default('DIA'),
   clientId: z.string().uuid(),
   projectId: z.string().uuid(),
+  activityId: z.string().uuid().nullable().optional(),
+  clientConfirmation: txt(300).optional(),
   sap: txt(40).optional(),
   productName: txt(200).optional(),
   unit: txt(20).optional(),
@@ -53,8 +55,11 @@ export const assignmentsSchema = z.object({
 }).strict();
 
 export const startSchema = z.object({ startedAt: isoDateTime.optional() }).strict();
+// Confirmación que da el cliente antes de iniciar (p. ej. el exportador, o el producto y la fecha validados por WhatsApp).
+export const confirmSchema = z.object({ text: txt(300).min(2), confirmedAt: isoDateTime.optional() }).strict();
 export const closeSchema = z.object({
   producedQty: num0.optional(),
+  producedDetail: z.record(z.string().trim().min(1).max(40), num0).optional(),   // por parte del desglose del proyecto (p. ej. cartón A/B/C)
   finishedAt: isoDateTime.optional(),
   notes: txt(500).optional(),
   personas: z.array(z.object({ personId: z.string().uuid(), qtyDone: num0 })).max(300).optional(),
@@ -87,19 +92,32 @@ const ORDER_COLS = `o.id, o.order_date AS "date", o.shift, o.status, o.sap, o.pr
   o.validated_at AS "validatedAt", o.statement_id AS "statementId", o.invoice_id AS "invoiceId",
   o.notes, o.version, o.client_id AS "clientId", c.name AS "clientName",
   o.project_id AS "projectId", p.name AS "projectName",
+  o.activity_id AS "activityId", a.name AS "activityName", o.produced_detail AS "producedDetail",
+  o.client_confirmation AS "clientConfirmation", o.confirmed_at AS "confirmedAt",
+  p.category, p.confirm_label AS "confirmLabel", p.output_parts AS "outputParts", p.process_notes AS "processNotes",
   (SELECT count(*)::int FROM maquila_assignments a WHERE a.order_id = o.id AND a.active) AS "people"`;
-const ORDER_FROM = `FROM maquila_orders o JOIN clients c ON c.id = o.client_id JOIN projects p ON p.id = o.project_id`;
+const ORDER_FROM = `FROM maquila_orders o JOIN clients c ON c.id = o.client_id JOIN projects p ON p.id = o.project_id
+  LEFT JOIN project_activities a ON a.id = o.activity_id`;
 
-async function assertProject(c: Q, clientId: string, projectId: string) {
+// El proyecto es del cliente y de la sede de la orden; la actividad es del proyecto y es obligatoria si el proyecto tiene actividades.
+async function assertProject(c: Q, sede: string, clientId: string, projectId: string, activityId?: string | null) {
   const p = (await c.query(
-    `SELECT p.id, p.name, p.um, p.active, c.name AS client_name, c.active AS client_active
+    `SELECT p.id, p.name, p.um, p.active, p.sede_id, c.name AS client_name, c.active AS client_active
      FROM projects p JOIN clients c ON c.id = p.client_id
      WHERE p.id = $1 AND p.client_id = $2`,
     [projectId, clientId],
   )).rows[0];
   if (!p) throw bad('El proyecto no pertenece al cliente seleccionado.');
+  if (p.sede_id !== sede) throw bad(`El proyecto «${p.name}» es de otra sede.`);
   if (!p.active) throw bad(`El proyecto «${p.name}» está inactivo.`);
   if (!p.client_active) throw bad(`El cliente «${p.client_name}» está inactivo.`);
+  if (activityId) {
+    const a = (await c.query('SELECT name, active FROM project_activities WHERE id = $1 AND project_id = $2', [activityId, projectId])).rows[0];
+    if (!a) throw bad(`La actividad no pertenece al proyecto «${p.name}».`);
+    if (!a.active) throw bad(`La actividad «${a.name}» está inactiva.`);
+  } else if ((await c.query('SELECT 1 FROM project_activities WHERE project_id = $1 AND active', [projectId])).rowCount) {
+    throw bad(`Selecciona la actividad de «${p.name}».`);
+  }
   return p;
 }
 
@@ -194,11 +212,14 @@ export async function getOrder(sede: string, id: string) {
 export async function createOrder(user: AuthUser, b: z.infer<typeof orderSchema>) {
   const sede = sedeDe(user);
   const id = await tx(async (c) => {
-    const p = await assertProject(c, b.clientId, b.projectId);
+    const p = await assertProject(c, sede, b.clientId, b.projectId, b.activityId);
+    const conf = b.clientConfirmation?.trim() || null;
     const r = await c.query(
-      `INSERT INTO maquila_orders (sede_id, client_id, project_id, order_date, shift, sap, product_name, unit, target_qty, notes, status, created_by)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'PROGRAMADA',$11) RETURNING id`,
-      [sede, b.clientId, b.projectId, b.date, b.shift, b.sap || null, b.productName || null, (b.unit || p.um).toUpperCase(), b.targetQty, b.notes || null, user.id],
+      `INSERT INTO maquila_orders (sede_id, client_id, project_id, activity_id, order_date, shift, sap, product_name, unit, target_qty, notes, status, created_by,
+                                   client_confirmation, confirmed_at, confirmed_by)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'PROGRAMADA',$12,$13::text,
+               CASE WHEN $13::text IS NULL THEN NULL ELSE now() END, CASE WHEN $13::text IS NULL THEN NULL ELSE $12::uuid END) RETURNING id`,
+      [sede, b.clientId, b.projectId, b.activityId || null, b.date, b.shift, b.sap || null, b.productName || null, (b.unit || p.um).toUpperCase(), b.targetQty, b.notes || null, user.id, conf],
     );
     await audit(c, user, 'maquila_orden', r.rows[0].id, 'crear', null, { ...b, sede });
     return r.rows[0].id as string;
@@ -214,7 +235,9 @@ export async function updateOrder(user: AuthUser, id: string, b: z.infer<typeof 
     if (!['PROGRAMADA', 'EN_PROCESO'].includes(cur.status)) throw conflict('ESTADO_INVALIDO', 'Solo se edita una orden programada o en proceso.');
     if (b.version !== undefined && b.version !== cur.version) throw conflict('CONFLICTO_VERSION', 'Otra persona modificó esta orden. Recarga.');
     const clientId = b.clientId ?? cur.client_id, projectId = b.projectId ?? cur.project_id;
-    if (b.clientId || b.projectId) await assertProject(c, clientId, projectId);
+    // al cambiar de proyecto, la actividad anterior deja de valer si no se envía otra
+    const activityId = b.activityId !== undefined ? b.activityId || null : projectId !== cur.project_id ? null : cur.activity_id;
+    if (b.clientId || b.projectId || b.activityId !== undefined) await assertProject(c, sede, clientId, projectId, activityId);
     const r = await c.query(
       `UPDATE maquila_orders SET
          order_date = coalesce($3::date, order_date), shift = coalesce($4, shift),
@@ -223,10 +246,10 @@ export async function updateOrder(user: AuthUser, id: string, b: z.infer<typeof 
          unit = CASE WHEN $7::text IS NULL THEN unit ELSE $7 END,
          target_qty = coalesce($8::numeric, target_qty),
          notes = CASE WHEN $9::text IS NULL THEN notes ELSE $9 END,
-         client_id = coalesce($10::uuid, client_id), project_id = coalesce($11::uuid, project_id),
+         client_id = coalesce($10::uuid, client_id), project_id = coalesce($11::uuid, project_id), activity_id = $12::uuid,
          version = version + 1, updated_at = now()
        WHERE id = $1 AND sede_id = $2 RETURNING *`,
-      [id, sede, b.date ?? null, b.shift ?? null, b.sap ?? null, b.productName ?? null, b.unit ?? null, b.targetQty ?? null, b.notes ?? null, b.clientId ?? null, b.projectId ?? null],
+      [id, sede, b.date ?? null, b.shift ?? null, b.sap ?? null, b.productName ?? null, b.unit ?? null, b.targetQty ?? null, b.notes ?? null, b.clientId ?? null, b.projectId ?? null, activityId],
     );
     await audit(c, user, 'maquila_orden', id, 'editar', cur, r.rows[0]);
   });
@@ -271,10 +294,26 @@ export async function startOrder(user: AuthUser, id: string, startedAt?: string)
     if (!cur) throw notFound('Orden de maquila');
     if (cur.status === 'EN_PROCESO') return;
     if (cur.status !== 'PROGRAMADA') throw conflict('ESTADO_INVALIDO', 'Solo se inicia una orden programada.');
+    const label = (await c.query('SELECT confirm_label FROM projects WHERE id = $1', [cur.project_id])).rows[0]?.confirm_label;
+    if (label && !cur.client_confirmation) throw conflict('FALTA_CONFIRMACION', `Antes de iniciar registra la confirmación del cliente: ${label.toLowerCase()}.`);
     const at = startedAt ? new Date(startedAt) : new Date();
     await c.query('UPDATE maquila_orders SET status = $3, started_at = $4, version = version + 1, updated_at = now() WHERE id = $1 AND sede_id = $2', [id, sede, 'EN_PROCESO', at]);
     await c.query('UPDATE maquila_assignments SET started_at = coalesce(started_at, $2), updated_at = now() WHERE order_id = $1 AND active', [id, at]);
     await audit(c, user, 'maquila_orden', id, 'iniciar', { status: cur.status }, { status: 'EN_PROCESO', startedAt: at.toISOString() });
+  });
+  return getOrder(sede, id);
+}
+
+export async function confirmOrder(user: AuthUser, id: string, b: z.infer<typeof confirmSchema>) {
+  const sede = sedeDe(user);
+  await tx(async (c) => {
+    const cur = (await c.query('SELECT * FROM maquila_orders WHERE id = $1 AND sede_id = $2 FOR UPDATE', [id, sede])).rows[0];
+    if (!cur) throw notFound('Orden de maquila');
+    if (!['PROGRAMADA', 'EN_PROCESO'].includes(cur.status)) throw conflict('ESTADO_INVALIDO', 'La confirmación del cliente se registra en una orden programada o en proceso.');
+    const at = b.confirmedAt ? new Date(b.confirmedAt) : new Date();
+    await c.query(`UPDATE maquila_orders SET client_confirmation = $3, confirmed_at = $4, confirmed_by = $5, version = version + 1, updated_at = now()
+      WHERE id = $1 AND sede_id = $2`, [id, sede, b.text.trim(), at, user.id]);
+    await audit(c, user, 'maquila_orden', id, 'confirmar_cliente', { clientConfirmation: cur.client_confirmation }, { clientConfirmation: b.text.trim(), confirmedAt: at.toISOString() });
   });
   return getOrder(sede, id);
 }
@@ -293,12 +332,25 @@ export async function closeOrder(user: AuthUser, id: string, b: z.infer<typeof c
       const r = await c.query('UPDATE maquila_assignments SET qty_done = $3, updated_at = now() WHERE order_id = $1 AND person_id = $2 AND active', [id, p.personId, p.qtyDone]);
       if (!r.rowCount) throw bad('La persona no está asignada a esta orden.');
     }
-    const produced = b.producedQty ?? (await c.query('SELECT coalesce(sum(qty_done),0) AS q FROM maquila_assignments WHERE order_id = $1 AND active', [id])).rows[0].q;
+    // Con desglose (p. ej. cartón A/B/C) la cantidad producida es la suma de sus partes.
+    const parts: string[] = (await c.query('SELECT output_parts FROM projects WHERE id = $1', [cur.project_id])).rows[0]?.output_parts ?? [];
+    let detail: Record<string, number> = {}, produced: number;
+    if (parts.length) {
+      if (!b.producedDetail) throw bad(`Indica la cantidad de cada parte: ${parts.join(', ')}.`);
+      const extra = Object.keys(b.producedDetail).filter((k) => !parts.includes(k));
+      if (extra.length) throw bad(`Partes que no son del proyecto: ${extra.join(', ')}.`);
+      detail = Object.fromEntries(parts.map((k) => [k, b.producedDetail![k] ?? 0]));
+      produced = r2(Object.values(detail).reduce((a, x) => a + x, 0));
+      if (b.producedQty !== undefined && r2(b.producedQty) !== produced) throw bad(`La cantidad producida (${b.producedQty}) no coincide con la suma del desglose (${produced}).`);
+    } else {
+      if (b.producedDetail && Object.keys(b.producedDetail).length) throw bad('Este proyecto no tiene desglose de la cantidad producida.');
+      produced = b.producedQty ?? Number((await c.query('SELECT coalesce(sum(qty_done),0) AS q FROM maquila_assignments WHERE order_id = $1 AND active', [id])).rows[0].q);
+    }
     const r = await c.query(
-      `UPDATE maquila_orders SET status = 'CERRADA', produced_qty = $3, finished_at = $4, closed_at = now(), closed_by = $5,
+      `UPDATE maquila_orders SET status = 'CERRADA', produced_qty = $3, produced_detail = $7::jsonb, finished_at = $4, closed_at = now(), closed_by = $5,
          notes = CASE WHEN $6::text IS NULL THEN notes ELSE $6 END, version = version + 1, updated_at = now()
        WHERE id = $1 AND sede_id = $2 RETURNING *`,
-      [id, sede, produced, fin, user.id, b.notes ?? null],
+      [id, sede, produced, fin, user.id, b.notes ?? null, JSON.stringify(detail)],
     );
     await audit(c, user, 'maquila_orden', id, 'cerrar', { status: cur.status, producedQty: cur.produced_qty }, r.rows[0]);
   });
@@ -310,7 +362,7 @@ export async function listPorFacturar(sede: string, f: { from?: string; to?: str
   const limit = Math.min(Math.max(f.limit ?? 200, 1), 500);
   return (await pool.query(
     `SELECT id, client_id AS "clientId", client_name AS "clientName", project_id AS "projectId", project_name AS "projectName",
-            order_date AS "date", shift, sap, product_name AS "productName", unit, produced_qty AS "producedQty", validated_at AS "validatedAt"
+            activity_name AS "activityName", produced_detail AS "producedDetail", order_date AS "date", shift, sap, product_name AS "productName", unit, produced_qty AS "producedQty", validated_at AS "validatedAt"
      FROM maquila_por_facturar
      WHERE sede_id = $1
        AND ($2::date IS NULL OR order_date >= $2) AND ($3::date IS NULL OR order_date <= $3)
@@ -341,8 +393,8 @@ export async function validateOrder(user: AuthUser, id: string, etapa: Etapa, b:
     const status = b.decision === 'APROBADA' ? t.hacia : 'RECHAZADA';
     const final = etapa === 'VALIDADOR' && b.decision === 'APROBADA';
     await c.query(`UPDATE maquila_orders SET status = $3,
-        validated_at = CASE WHEN $4 THEN now() ELSE NULL END,
-        validated_by = CASE WHEN $4 THEN $5 ELSE NULL END,
+        validated_at = CASE WHEN $4::boolean THEN now() ELSE NULL END,
+        validated_by = CASE WHEN $4::boolean THEN $5::uuid ELSE NULL END,
         version = version + 1, updated_at = now()
       WHERE id = $1 AND sede_id = $2`, [id, sede, status, final, user.id]);
     await audit(c, user, 'maquila_orden', id, b.decision === 'APROBADA' ? `validar_${etapa.toLowerCase()}` : `rechazar_${etapa.toLowerCase()}`,
@@ -436,8 +488,9 @@ export async function getStatement(sede: string, id: string) {
     FROM maquila_statements s JOIN clients c ON c.id = s.client_id WHERE s.id = $1 AND s.sede_id = $2`, [id, sede])).rows[0];
   if (!s) throw notFound('Cargo de maquila');
   const lines = (await pool.query(`SELECT l.id, l.order_id AS "orderId", l.qty, l.rate, l.amount, l.active,
-      o.order_date AS "date", o.sap, o.product_name AS "productName", o.unit, o.produced_qty AS "producedQty"
-    FROM maquila_statement_lines l JOIN maquila_orders o ON o.id = l.order_id
+      o.order_date AS "date", o.sap, o.product_name AS "productName", o.unit, o.produced_qty AS "producedQty",
+      o.produced_detail AS "producedDetail", a.name AS "activityName"
+    FROM maquila_statement_lines l JOIN maquila_orders o ON o.id = l.order_id LEFT JOIN project_activities a ON a.id = o.activity_id
     WHERE l.statement_id = $1 ORDER BY o.order_date`, [id])).rows;
   return { ...s, lines };
 }

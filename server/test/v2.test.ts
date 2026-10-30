@@ -2,23 +2,32 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { app, as, pool, request, resetDb } from './helpers.js';
 
-beforeAll(async () => { await resetDb(true); });
+// Coca Cola, Alnost, Xporta y Licorera se trabajan en Z11 (migración 008): los usuarios de prueba entran también ahí.
+beforeAll(async () => {
+  await resetDb(true);
+  await pool.query(`INSERT INTO user_sedes (user_id, sede_id) SELECT id, 'Z11' FROM users WHERE email IN ('operador@omnia.local','supervisor@omnia.local','comercial@omnia.local') ON CONFLICT DO NOTHING`);
+});
 afterAll(async () => { await pool.end(); });
 
 const proj = async (client: string, code: string) => (await pool.query(`SELECT p.id FROM projects p JOIN clients c ON c.id = p.client_id WHERE c.code = $1 AND p.code = $2`, [client, code])).rows[0].id as string;
 const item = async (kind: string) => (await pool.query(`SELECT code FROM inv_items WHERE kind = $1 ORDER BY sort LIMIT 1`, [kind])).rows[0].code as string;
 
 describe('clientes y proyectos', () => {
-  it('catálogo trae los 5 clientes y los proyectos pedidos', async () => {
+  it('catálogo trae los 6 clientes y los proyectos activos de cada sede', async () => {
     const s = await as('supervisor'), r = await s.get('/api/catalogo');
-    expect(r.body.clients.map((c: any) => c.name)).toEqual(['Fritolay', 'Coca Cola', 'Alnost', 'XPORTA', 'Licorera']);
-    const names = (cc: string) => r.body.projects.filter((p: any) => p.clientId === r.body.clients.find((c: any) => c.code === cc).id).map((p: any) => p.name);
-    expect(names('FRITOLAY')).toEqual(['Maquila', 'Walmart', 'Embolsado Cobán', 'Descargas', 'Unisuper', 'Dollar City', 'Revisión', 'Etiquetado', 'Sunchips', 'Crackets']);
-    expect(names('COCACOLA')).toEqual(['Habilitación de envase - trasiego', 'Habilitación de tarimas - trasiego', 'Packs', 'Desarme']);
-    expect(names('ALNOST')).toEqual(['Validación de fechas']); expect(names('XPORTA')).toEqual(['Validación de fechas']); expect(names('LICORERA')).toEqual(['Etiquetado', 'Packs']);
+    expect(r.body.clients.map((c: any) => c.name)).toEqual(['Fritolay', 'Coca Cola', 'Alnost', 'XPORTA', 'Licorera', 'Cebollines']);
+    const names = (cc: string, sede: string) => r.body.projects.filter((p: any) => p.active && p.sedeId === sede && p.clientId === r.body.clients.find((c: any) => c.code === cc).id).map((p: any) => p.name);
+    expect(names('FRITOLAY', 'OMNIA')).toEqual(['Maquila', 'Walmart', 'Embolsado Cobán', 'Descargas', 'Unisuper', 'Dollar City', 'Revisión', 'Etiquetado', 'Sunchips', 'Crackets']);
+    const cat = (code: string) => r.body.projects.find((p: any) => p.sedeId === 'OMNIA' && p.code === code).category;
+    expect(['UNI', 'DC', 'REVM', 'SUN'].map(cat)).toEqual(['OUTSOURCING', 'OUTSOURCING', 'OUTSOURCING', 'OUTSOURCING']);
+    expect(['MAQ', 'WM', 'ETQ', 'DESC', 'COB', 'CRK'].map(cat).every((x) => x === 'MAQUILA')).toBe(true);
+    expect(names('FRITOLAY', 'SAN-JUAN')).toEqual(['Maquilado de cartón']);
+    expect(names('COCACOLA', 'Z11')).toEqual(['Trasiego de envase', 'Trasiego de tarimas', 'Armado de packs', 'Desarme']);
+    expect(names('ALNOST', 'Z11')).toEqual(['Validación de fechas']); expect(names('XPORTA', 'Z11')).toEqual(['Etiquetado']);
+    expect(names('LICORERA', 'Z11')).toEqual(['Maquila de ofertas']); expect(names('CEBOLLINES', 'Z11')).toEqual(['Maquila de packs']);
   });
   it('registro genérico de otro cliente: requiere proyecto, no afecta el motor de Fritolay', async () => {
-    const o = await as('operador');
+    const o = await as('operador', 'Z11');
     expect((await o.post('/api/produccion').send({ kind: 'gen', date: '2026-10-21', boxes: 10 })).status).toBe(400);
     const before = await (await as('supervisor')).get('/api/resumen?mes=2026-10');
     const r = await o.post('/api/produccion').send({ kind: 'gen', projectId: await proj('COCACOLA', 'PACKS'), date: '2026-10-21', boxes: 500, refDoc: 'PK-1' });
@@ -29,7 +38,7 @@ describe('clientes y proyectos', () => {
     expect(after.body.resumen.T.cost).toBe(before.body.resumen.T.cost); expect(after.body.resumen.T.hh).toBe(before.body.resumen.T.hh);
   });
   it('un proyecto solo admite sus tipos de registro', async () => {
-    const o = await as('operador');
+    const o = await as('operador', 'Z11');
     const r = await o.post('/api/produccion').send({ kind: 'wm', projectId: await proj('COCACOLA', 'PACKS'), date: '2026-10-21', boxes: 5 });
     expect(r.status).toBe(400);
   });
@@ -69,7 +78,7 @@ describe('áreas retiradas y no borrado', () => {
     expect((await s.delete('/api/produccion/00000000-0000-0000-0000-000000000000')).status).toBe(404);
   });
   it('editar un confirmado exige motivo y queda en la bitácora; anular exige justificación', async () => {
-    const s = await as('supervisor'), r = await s.post('/api/produccion').send({ kind: 'gen', projectId: await proj('ALNOST', 'VF'), date: '2026-10-20', boxes: 100, refDoc: 'AL-1' });
+    const s = await as('supervisor', 'Z11'), r = await s.post('/api/produccion').send({ kind: 'gen', projectId: await proj('ALNOST', 'VF'), date: '2026-10-20', boxes: 100, refDoc: 'AL-1' });
     expect((await s.patch(`/api/produccion/${r.body.id}`).send({ boxes: 120, version: r.body.version })).status).toBe(400);
     const e = await s.patch(`/api/produccion/${r.body.id}`).send({ boxes: 120, version: r.body.version, reason: 'corrección de conteo' });
     expect(e.status).toBe(200);
@@ -191,7 +200,7 @@ describe('órdenes de compra e inventario de insumos', () => {
     const ins = await a.post('/api/catalogo/insumos').send({ code: 'FILM-T', name: 'Film de prueba', unit: 'rollo', price: 100 });
     const ing = await s.post('/api/insumos/movimientos').send({ date: '2026-10-15', itemId: ins.body.id, kind: 'ingreso', qty: 20 });
     expect(ing.status).toBe(201);
-    const con = await s.post('/api/insumos/movimientos').send({ date: '2026-10-17', itemId: ins.body.id, kind: 'consumo', qty: 6, projectId: await proj('COCACOLA', 'PACKS'), area: 'maq' });
+    const con = await s.post('/api/insumos/movimientos').send({ date: '2026-10-17', itemId: ins.body.id, kind: 'consumo', qty: 6, projectId: await proj('FRITOLAY', 'MAQ'), area: 'maq' });
     expect(con.status).toBe(201);
     const row = async () => ((await s.get('/api/inventario?mes=2026-10')).body.inventory.rows as any[]).find((r) => r.id === ins.body.id);
     let r = await row(); expect(r.fin).toBe(14); expect(r.con).toBe(6);
@@ -214,7 +223,7 @@ describe('módulo comercial', () => {
     expect(Math.abs(fl.total - sum)).toBeLessThan(0.5);
   });
   it('otros clientes: cantidad × tarifa vigente por día; sin tarifa = N/D y se avisa', async () => {
-    const c = await as('comercial'), s = await as('supervisor'), p = await proj('XPORTA', 'VF');
+    const c = await as('comercial', 'Z11'), s = await as('supervisor', 'Z11'), p = await proj('XPORTA', 'ETQ');
     await s.post('/api/produccion').send({ kind: 'gen', projectId: p, date: '2026-10-07', boxes: 100, refDoc: 'X-1' });
     await s.post('/api/produccion').send({ kind: 'gen', projectId: p, date: '2026-10-14', boxes: 50, refDoc: 'X-2' });
     let r = (await c.get('/api/comercial/cobro?mes=2026-10')).body, row = r.clients.find((x: any) => x.name === 'XPORTA').rows[0];

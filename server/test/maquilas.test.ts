@@ -4,7 +4,7 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { app, as, request, resetDb } from './helpers.js';
 
 let admin: Awaited<ReturnType<typeof as>>;
-let project: any, client: any, today: string, coordToken = '';
+let project: any, client: any, activityId: string, today: string, coordToken = '';
 
 beforeAll(async () => {
   await resetDb(true);
@@ -12,6 +12,7 @@ beforeAll(async () => {
   const cat = (await admin.get('/api/catalogo')).body;
   client = cat.clients.find((c: any) => c.active);
   project = cat.projects.find((p: any) => p.active && p.clientId === client.id);
+  activityId = project.activities.find((a: any) => a.active)?.id;   // la actividad es obligatoria si el proyecto tiene
   today = (await admin.get('/api/meta')).body.today;
 });
 
@@ -38,7 +39,7 @@ describe('flujo de una maquila', () => {
     expect(p.status).toBe(201);
 
     const o = await admin.post('/api/maquila/ordenes').send({
-      date: today, shift: 'DIA', clientId: client.id, projectId: project.id,
+      date: today, shift: 'DIA', clientId: client.id, projectId: project.id, activityId,
       sap: 'SAP-1', productName: 'Producto de prueba', targetQty: 100, unit: 'CAJA',
     });
     expect(o.status).toBe(201);
@@ -64,7 +65,7 @@ describe('flujo de una maquila', () => {
   });
 
   it('no se cierra una orden que no está en proceso', async () => {
-    const o = await admin.post('/api/maquila/ordenes').send({ date: today, clientId: client.id, projectId: project.id, targetQty: 10 });
+    const o = await admin.post('/api/maquila/ordenes').send({ date: today, clientId: client.id, projectId: project.id, activityId, targetQty: 10 });
     expect(o.status).toBe(201);
     const c = await admin.post(`/api/maquila/ordenes/${o.body.id}/cerrar`).send({ producedQty: 5 });
     expect(c.status).toBe(409);
@@ -74,7 +75,7 @@ describe('flujo de una maquila', () => {
 
 
 async function crearCerrada(projectId: string, clientId = client.id, qty = 10) {
-  const o = await admin.post('/api/maquila/ordenes').send({ date: today, shift: 'DIA', clientId, projectId, targetQty: qty, unit: 'CAJA' });
+  const o = await admin.post('/api/maquila/ordenes').send({ date: today, shift: 'DIA', clientId, projectId, activityId: projectId === project.id ? activityId : undefined, targetQty: qty, unit: 'CAJA' });
   expect(o.status).toBe(201);
   const s = await admin.post(`/api/maquila/ordenes/${o.body.id}/iniciar`).send({ startedAt: new Date(Date.now() - 60_000).toISOString() });
   expect(s.status).toBe(200);

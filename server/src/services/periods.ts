@@ -43,7 +43,11 @@ export async function precheck(sede: string, k: number) {
                                       (SELECT count(*) FROM requirements WHERE sede_id = $3 AND status='borrador' AND request_date BETWEEN $1 AND $2) c`, [s, e, sede])).rows[0];
   const nd = +d.a + +d.b + +d.c;
   if (nd) blockers.push(`Hay ${nd} borradores en el periodo; confírmalos o anúlalos.`);
-  if (!R.lines.length) blockers.push('El periodo no tiene producción ni horas.');
+  // una sede puede trabajar solo maquilas (p. ej. San Juan): con órdenes de maquila el periodo también se cierra
+  const mq = (await pool.query(`SELECT count(*) FILTER (WHERE status <> 'ANULADA')::int n, count(*) FILTER (WHERE status IN ('PROGRAMADA','EN_PROCESO'))::int abiertas
+    FROM maquila_orders WHERE sede_id = $3 AND order_date BETWEEN $1 AND $2`, [s, e, sede])).rows[0];
+  if (!R.lines.length && !mq.n) blockers.push('El periodo no tiene producción, horas ni maquilas.');
+  if (mq.abiertas) warnings.push(`Hay ${mq.abiertas} maquila(s) programada(s) o en proceso; después del cierre ya no podrán iniciarse ni cerrarse.`);
   for (const u of R.unknownSaps) warnings.push(`SAP ${u.sap} sin catálogo (no suma HH): ${u.name}`);
   for (const l of R.lines) if (l.incomplete.length) warnings.push(`${l.name}: ${l.incomplete.join(', ')}`);
   R.wHH.forEach((v, i) => { if (v > 0 && !R.wAsis[i]) warnings.push(`Semana ${R.period.weeks[i].week} sin asistencia: la eficiencia queda N/D`); });

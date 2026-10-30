@@ -194,17 +194,33 @@ function Bitacora() {
     </Card>
   );
 }
+// Los clientes son comunes; los proyectos, de cada sede. Aquí se ven y crean los de la sede actual.
 function Clientes() {
-  const { can, toast, refresh } = useApp();
+  const { can, toast, refresh, meta } = useApp();
   const { data: cat, err, loading, reload } = useLoad<any>(() => api.get('/catalogo'), []);
-  const [nc, setNc] = useState(''), [np, setNp] = useState({ clientId: '', name: '', um: 'UNIDAD' });
-  const edit = can('catalogo.editar');
+  const [nc, setNc] = useState(''), [np, setNp] = useState({ clientId: '', name: '', um: 'UNIDAD', category: 'MAQUILA' }), [ed, setEd] = useState<any>(null);
+  const CAT: Record<string, string> = { MAQUILA: 'Maquila', OUTSOURCING: 'Outsourcing' };   // categorías de servicio; Maquila es la principal
+  const edit = can('catalogo.editar'), sede = meta?.sede;
   const run = async (fn: () => Promise<any>, ok: string) => { try { await fn(); toast(ok); reload(); refresh(); } catch (e: any) { toast(e.message, true); } };
+  const enSede = (cat?.projects ?? []).filter((p: any) => p.sedeId === sede?.id);
+  const conProy = (cat?.clients ?? []).filter((c: any) => enSede.some((p: any) => p.clientId === c.id));
+  const sinProy = (cat?.clients ?? []).filter((c: any) => !conProy.includes(c));
+  const abrir = (p: any) => setEd({ p, name: p.name, um: p.um, category: p.category ?? 'MAQUILA', processNotes: p.processNotes ?? '', confirmLabel: p.confirmLabel ?? '', parts: (p.outputParts ?? []).join(', '), nueva: '' });
+  const guardar = () => run(async () => {
+    const outputParts = ed.parts.split(',').map((x: string) => x.trim()).filter(Boolean);
+    await api.patch('/catalogo/proyectos/' + ed.p.id, { name: ed.name, um: ed.um, category: ed.category, processNotes: ed.processNotes, confirmLabel: ed.confirmLabel, outputParts });
+    setEd(null);
+  }, 'Proyecto actualizado.');
+  // las actividades se guardan al momento; se refresca el proyecto abierto con el catálogo nuevo
+  const actividad = async (fn: () => Promise<any>, ok: string) => {
+    try { await fn(); toast(ok); const c = await api.get('/catalogo'); const p = c.projects.find((x: any) => x.id === ed.p.id); setEd({ ...ed, p, nueva: '' }); reload(); }
+    catch (e: any) { toast(e.message, true); }
+  };
   return (
     <>
       <Loading err={err} loading={loading && !cat} />
       {cat && <>
-        {edit && <Card title="Agregar" sub="Los proyectos nuevos registran cantidad y unidad de medida; no tienen motor de costo (se cobran con tarifa en Comercial).">
+        {edit && <Card title="Agregar" sub={`Los clientes son comunes a todas las sedes; el proyecto nuevo se crea en ${sede?.name ?? 'la sede actual'}. Registra cantidad y unidad de medida, sin motor de costo (se cobra con tarifa en Comercial).`}>
           <div className="form">
             <div className="field w2"><label htmlFor="nc">Nuevo cliente</label><input id="nc" value={nc} onChange={(e) => setNc(e.target.value)} /></div>
             <div className="factions"><button className="btn btn-blue" disabled={nc.trim().length < 2} onClick={() => run(async () => { await api.post('/catalogo/clientes', { name: nc }); setNc(''); }, 'Cliente agregado.')}>Agregar cliente</button></div>
@@ -213,18 +229,46 @@ function Clientes() {
             <div className="field"><label htmlFor="pc">Cliente</label><select id="pc" value={np.clientId} onChange={(e) => setNp({ ...np, clientId: e.target.value })}><option value="">Selecciona…</option>{cat.clients.filter((c: any) => c.active).map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
             <div className="field w2"><label htmlFor="pn">Nuevo proyecto</label><input id="pn" value={np.name} onChange={(e) => setNp({ ...np, name: e.target.value })} /></div>
             <div className="field"><label htmlFor="pu">Unidad de medida</label><input id="pu" value={np.um} onChange={(e) => setNp({ ...np, um: e.target.value })} /></div>
+            <div className="field"><label htmlFor="pk">Categoría</label><select id="pk" value={np.category} onChange={(e) => setNp({ ...np, category: e.target.value })}>{Object.entries(CAT).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></div>
             <div className="factions"><button className="btn btn-blue" disabled={!np.clientId || np.name.trim().length < 2} onClick={() => run(async () => { await api.post('/catalogo/proyectos', np); setNp({ ...np, name: '' }); }, 'Proyecto agregado.')}>Agregar proyecto</button></div>
           </div>
         </Card>}
-        {cat.clients.map((c: any) => (
-          <Card key={c.id} title={c.name} sub={c.active ? undefined : 'Inactivo'} actions={edit && <button className="btn btn-sm" onClick={() => run(() => api.patch('/catalogo/clientes/' + c.id, { active: !c.active }), c.active ? 'Cliente desactivado.' : 'Cliente activado.')}>{c.active ? 'Desactivar' : 'Activar'}</button>}>
-            <div className="tbl-wrap"><table className="tbl"><thead><tr><th>Proyecto</th><th>U/M</th><th>Tipo</th><th>Estado</th><th /></tr></thead><tbody>
-              {cat.projects.filter((p: any) => p.clientId === c.id).map((p: any) => (
-                <tr key={p.id}><td>{p.name}</td><td>{p.um}</td><td>{p.kinds[0] === 'gen' ? 'Registro genérico' : 'Con motor de costo'}</td><td>{p.active ? <Pill kind="ok">Activo</Pill> : <Pill kind="warn">Inactivo</Pill>}</td>
-                  <td>{edit && <button className="btn btn-sm" onClick={() => run(() => api.patch('/catalogo/proyectos/' + p.id, { active: !p.active }), 'Proyecto actualizado.')}>{p.active ? 'Desactivar' : 'Activar'}</button>}</td></tr>))}
+        {!conProy.length && <p className="muted">{sede?.name ?? 'Esta sede'} todavía no tiene proyectos.</p>}
+        {conProy.map((c: any) => (
+          <Card key={c.id} title={c.name} sub={`${sede?.name ?? ''}${c.active ? '' : ' · Cliente inactivo'}`} actions={edit && <button className="btn btn-sm" onClick={() => run(() => api.patch('/catalogo/clientes/' + c.id, { active: !c.active }), c.active ? 'Cliente desactivado.' : 'Cliente activado.')}>{c.active ? 'Desactivar cliente' : 'Activar cliente'}</button>}>
+            <div className="tbl-wrap"><table className="tbl"><thead><tr><th>Proyecto</th><th>Categoría</th><th>U/M</th><th>Actividades</th><th>Antes de iniciar</th><th>Desglose de salida</th><th>Tipo</th><th>Estado</th><th /></tr></thead><tbody>
+              {enSede.filter((p: any) => p.clientId === c.id).map((p: any) => (
+                <tr key={p.id} className={p.active ? '' : 'void'}><td>{p.name}{p.processNotes && <div className="muted" title={p.processNotes}>Con nota de proceso</div>}</td><td>{CAT[p.category] ?? p.category}</td><td>{p.um}</td>
+                  <td>{p.activities.filter((a: any) => a.active).map((a: any) => a.name).join(' · ') || '—'}</td>
+                  <td>{p.confirmLabel || '—'}</td><td>{(p.outputParts ?? []).join(' · ') || '—'}</td>
+                  <td>{p.kinds[0] === 'gen' ? 'Registro genérico' : 'Con motor de costo'}</td><td>{p.active ? <Pill kind="ok">Activo</Pill> : <Pill kind="warn">Inactivo</Pill>}</td>
+                  <td style={{ whiteSpace: 'nowrap' }}>{edit && <><button className="btn btn-sm" onClick={() => abrir(p)}>Editar</button>{' '}
+                    <button className="btn btn-sm" onClick={() => run(() => api.patch('/catalogo/proyectos/' + p.id, { active: !p.active }), 'Proyecto actualizado.')}>{p.active ? 'Desactivar' : 'Activar'}</button></>}</td></tr>))}
             </tbody></table></div>
           </Card>))}
-        <p className="muted">Nada se borra: los clientes y proyectos se desactivan y el historial se conserva.</p>
+        {sinProy.length > 0 && <p className="muted">Clientes sin proyectos en esta sede: {sinProy.map((c: any) => c.name).join(', ')}.</p>}
+        <p className="muted">Nada se borra: los clientes, proyectos y actividades se desactivan y el historial se conserva.</p>
+        {ed && <Modal title={`Editar · ${ed.p.name}`} onClose={() => setEd(null)} wide>
+          <div className="form">
+            <div className="field w2"><label htmlFor="ep-n">Nombre</label><input id="ep-n" value={ed.name} onChange={(e) => setEd({ ...ed, name: e.target.value })} /></div>
+            <div className="field"><label htmlFor="ep-u">Unidad de medida</label><input id="ep-u" value={ed.um} onChange={(e) => setEd({ ...ed, um: e.target.value })} /></div>
+            <div className="field"><label htmlFor="ep-k">Categoría</label><select id="ep-k" value={ed.category} onChange={(e) => setEd({ ...ed, category: e.target.value })}>{Object.entries(CAT).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></div>
+            <div className="field w2"><label htmlFor="ep-c">Confirmación del cliente antes de iniciar</label><input id="ep-c" placeholder="Vacío = no se requiere" value={ed.confirmLabel} onChange={(e) => setEd({ ...ed, confirmLabel: e.target.value })} /><small>p. ej. «Exportador confirmado por el cliente»</small></div>
+            <div className="field w2"><label htmlFor="ep-d">Desglose de la cantidad producida</label><input id="ep-d" placeholder="Vacío = una sola cantidad" value={ed.parts} onChange={(e) => setEd({ ...ed, parts: e.target.value })} /><small>Separado por comas, p. ej. «Cartón A, Cartón B, Cartón C»</small></div>
+            <div className="field w3"><label htmlFor="ep-p">Cómo se trabaja (se muestra al programar)</label><textarea id="ep-p" rows={3} value={ed.processNotes} onChange={(e) => setEd({ ...ed, processNotes: e.target.value })} /></div>
+          </div>
+          <h4 style={{ margin: '12px 0 6px' }}>Actividades</h4>
+          {!ed.p.activities.length && <p className="muted">Sin actividades: la orden se programa solo con el proyecto. Con actividades, elegir una es obligatorio.</p>}
+          {ed.p.activities.length > 0 && <div className="tbl-wrap"><table className="tbl"><tbody>
+            {ed.p.activities.map((a: any) => <tr key={a.id} className={a.active ? '' : 'void'}><td>{a.name}</td><td>{a.active ? <Pill kind="ok">Activa</Pill> : <Pill kind="warn">Inactiva</Pill>}</td>
+              <td><button className="btn btn-sm" onClick={() => actividad(() => api.patch('/catalogo/actividades/' + a.id, { active: !a.active }), a.active ? 'Actividad desactivada.' : 'Actividad activada.')}>{a.active ? 'Desactivar' : 'Activar'}</button></td></tr>)}
+          </tbody></table></div>}
+          <div className="form" style={{ marginTop: 8 }}>
+            <div className="field w2"><label htmlFor="ep-a">Nueva actividad</label><input id="ep-a" value={ed.nueva} onChange={(e) => setEd({ ...ed, nueva: e.target.value })} /></div>
+            <div className="factions"><button className="btn" disabled={ed.nueva.trim().length < 2} onClick={() => actividad(() => api.post(`/catalogo/proyectos/${ed.p.id}/actividades`, { name: ed.nueva }), 'Actividad agregada.')}>Agregar actividad</button></div>
+          </div>
+          <div className="mact"><button className="btn" onClick={() => setEd(null)}>Cancelar</button><button className="btn btn-blue" disabled={ed.name.trim().length < 2 || !ed.um.trim()} onClick={guardar}>Guardar proyecto</button></div>
+        </Modal>}
       </>}
     </>
   );

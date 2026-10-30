@@ -89,7 +89,7 @@ export async function excelCobro(q: Parameters<typeof cobro>[0], sede: string): 
 
 export async function listRates(sede: string) {
   const eng = await getEngine(sede);
-  const proj = (await pool.query(`SELECT p.id, p.code, p.name, p.um, p.kinds, c.id AS client_id, c.name AS client FROM projects p JOIN clients c ON c.id = p.client_id WHERE p.active ORDER BY c.sort, p.sort`)).rows;
+  const proj = (await pool.query(`SELECT p.id, p.code, p.name, p.um, p.kinds, c.id AS client_id, c.name AS client FROM projects p JOIN clients c ON c.id = p.client_id WHERE p.active AND p.sede_id = $1 ORDER BY c.sort, p.sort`, [sede])).rows;
   const rates = (await pool.query('SELECT id, project_id AS "projectId", rate, unit, valid_from AS "validFrom", valid_to AS "validTo", note FROM billing_rates ORDER BY valid_from DESC')).rows;
   const lines = eng.d.lines.filter((l) => LINE_PROJECT[l.key]).map((l) => ({ key: l.key, name: l.name, project: LINE_PROJECT[l.key], rate: eng.rateOf(l.key, iso(dn(new Date().toISOString().slice(0, 10))!)) }));
   return { projects: proj.map((p) => ({ id: p.id, code: p.code, name: p.name, um: p.um, clientId: p.client_id, client: p.client, motor: p.kinds[0] !== 'gen' })), rates, motor: lines,

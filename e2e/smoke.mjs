@@ -35,10 +35,10 @@ await tab('Horas y personal'); await expectText('Personal de maquila'); await sh
 await tab('Ajustes'); await expectText('Maquila: productos'); await shot('ajustes');
 await page.getByRole('tab', { name: 'Periodos' }).click(); await expectText('Elige el mes arriba'); await page.getByLabel('Mes', { exact: true }).waitFor(); ok('Periodos con selector de mes'); await shot('periodos');
 
-// Producción: añadir registro (Coca Cola → Packs), fecha automática, anular (no hay borrar)
+// Producción: añadir registro (Fritolay → Descargas, proyecto de Omnia), fecha automática, anular (no hay borrar)
 await tab('Producción'); await page.getByRole('button', { name: /Añadir nuevo registro/ }).click();
-await page.getByLabel('Cliente *').selectOption({ label: 'Coca Cola' }); await page.getByLabel('Proyecto *').selectOption({ label: 'Packs' });
-await page.getByLabel(/^Cantidad/).fill('77'); await page.getByLabel(/Documento/).fill('E2E-1'); await shot('nuevo-registro');
+await page.getByLabel('Cliente *').selectOption({ label: 'Fritolay' }); await page.getByLabel('Proyecto *').selectOption({ label: 'Descargas' });
+await page.getByLabel(/Factura \/ contenedor/).fill('E2E-1'); await page.getByLabel(/Tipo de descarga/).selectOption('GALLETA'); await page.getByLabel(/Cajas descargadas/).fill('77'); await shot('nuevo-registro');
 await page.getByRole('button', { name: 'Guardar registro' }).click(); await expectText('Registro guardado');
 await page.getByRole('button', { name: 'Cerrar' }).click(); await expectText('E2E-1');
 // persistencia: al recargar la página el registro sigue en el servidor
