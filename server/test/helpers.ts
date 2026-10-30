@@ -19,9 +19,9 @@ export async function login(role: 'admin' | 'supervisor' | 'operador' | 'consult
   if (r.status !== 200) throw new Error('login falló ' + JSON.stringify(r.body));
   return (tokens[role] = r.body.token);
 }
-export const as = async (role: Parameters<typeof login>[0]) => {
+export const as = async (role: Parameters<typeof login>[0], sede?: string) => {
   const t = await login(role);
-  const w = (m: 'get' | 'post' | 'put' | 'patch' | 'delete') => (url: string) => request(app)[m](url).set('Authorization', 'Bearer ' + t);
+  const w = (m: 'get' | 'post' | 'put' | 'patch' | 'delete') => (url: string) => { const r = request(app)[m](url).set('Authorization', 'Bearer ' + t); return sede ? r.set('X-Sede', sede) : r; };
   return { get: w('get'), post: w('post'), put: w('put'), patch: w('patch'), delete: w('delete') };
 };
 export { request, pool };

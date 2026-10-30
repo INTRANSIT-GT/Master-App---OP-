@@ -7,12 +7,13 @@ import { useApp } from '../store';
 
 export default function Horas() {
   const [tab, setTab] = useState<'grid' | 'maqp'>('maqp');
+  const { meta } = useApp();
   const { data: cat } = useLoad<any>(() => api.get('/catalogo'), []);
   const projects: any[] = cat?.projects ?? [], clients: any[] = cat?.clients ?? [];
   const label = (id: string) => { const p = projects.find((x) => x.id === id); return p ? `${clients.find((c) => c.id === p.clientId)?.name ?? ''} · ${p.name}` : ''; };
   const fields: FieldDef[] = [
     { k: 'date', label: 'Fecha', type: 'date', required: true },
-    { k: 'projectId', label: 'Cliente · proyecto', type: 'select', w: 2, options: projects.filter((p) => p.active).map((p) => [p.id, label(p.id)] as [string, string]) },
+    { k: 'projectId', label: 'Cliente · proyecto', type: 'select', w: 2, options: projects.filter((p) => p.active && p.sedeId === meta?.sede?.id).map((p) => [p.id, label(p.id)] as [string, string]) },
     { k: 'workerName', label: 'Personal / cuadrilla', type: 'text', w: 2 }, { k: 'hoursDay', label: 'Horas diurnas (total)', type: 'num' }, { k: 'hoursNight', label: 'Horas nocturnas (total)', type: 'num' }, { k: 'notes', label: 'Observación', type: 'text', w: 2 },
   ];
   const cols: Col[] = [{ h: 'Fecha', cell: D }, { h: 'Cliente · proyecto', cell: (r) => label(r.projectId) }, { h: 'Personal', cell: (r) => r.workerName }, { h: 'H día', n: true, cell: (r) => nfx(r.hoursDay) }, { h: 'H noche', n: true, cell: (r) => nfx(r.hoursNight) }, { h: 'Total', n: true, cell: (r) => nfx(r.hoursDay + r.hoursNight) }];

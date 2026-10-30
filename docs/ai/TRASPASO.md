@@ -280,3 +280,40 @@ Comando: `node scripts/intransit-startup.cjs` con JSON sintético por stdin, en 
 - **Desplegado:** migraciones 004–007 aplicadas en Supabase (`bocgzjupocnvjehklxhs`); función `operaciones` desplegada; Pages sirviendo `app-CfYH2q5s.js`; `/api/maquila/*` responde 401 sin token.
 - **Verificado:** `tsc` del servidor y de la web en verde; pruebas de la web 10/10. **Pendiente:** pruebas de integración del servidor (`npm test`), que requieren PostgreSQL local; no se ejecutaron en este equipo.
 - **No tocado:** repositorio `Master-App`, esquema `master`, función `api` y app de Transportes.
+
+## 2026-10-30 · Maquilas: proyectos y actividades por sede
+
+**Solicitud (Ing. Carmen):** adaptar la app a la operación de maquila de cada sede: sus clientes, proyectos y actividades (lista entregada en la sesión), con la confirmación previa del cliente en Alnost (validación de fechas por WhatsApp) y Xporta (exportador), el proceso de Cebollines y la salida de San Juan en cartón A, B y C.
+**Alcance:** código, pruebas y base local. Sin commit, sin Supabase y sin redespliegue (regla 8: esperan autorización).
+
+- **Línea base (antes de cambiar nada):** `omnia_test` recreada con 001-007; server 113/118. Las 5 fallas: crear una orden de maquila daba 500 porque `004_maquilas.sql` llama a `assert_period_open(fecha)`, que `003_sedes.sql` reemplazó por `(sede, fecha)`. Afecta al Supabase de prueba, que tiene 004 aplicada. Al corregirlo apareció otro: validar SOP daba 500 (parámetro sin tipo en `validated_by`).
+- **Hecho:** `db/migrations/008_maquila_sedes_actividades.sql` (candados de periodo de maquilas por sede; `projects.sede_id`, `process_notes`, `confirm_label`, `output_parts`; tabla `project_activities`; en la orden `activity_id`, confirmación del cliente y `produced_detail`; catálogo de la lista; Xporta «Validación de fechas» y Licorera «Etiquetado»/«Packs» desactivados; registros **demo** movidos a la sede de su proyecto). Servidor: catálogo con sede, actividades y altas en la sede actual (`routes/catalog.ts`); maquilas valida sede y actividad, exige confirmación para iniciar (`FALTA_CONFIRMACION`), `POST /maquila/ordenes/:id/confirmar`, cierre con desglose (`services/maquilas.ts`); producción, horas e insumos rechazan proyectos de otra sede (`services/records.ts`); tarifas de la sede (`services/comercial.ts`); semilla demo por sede. Web: Maquilas (actividad, confirmación, nota de proceso, cierre por partes, desglose en listas), Ajustes › Clientes y proyectos por sede con edición; Producción, Horas e Inventario ofrecen solo proyectos de la sede. `docs/10` §2.4.
+- **INTERPRETACIÓN (a confirmar):** la actividad se elige por orden y es opcional (vacía = proceso completo); un solo cliente por nombre en todas las sedes; los proyectos de Omnia que no estaban en la lista (Unisuper, Dollar City, Revisión, Sunchips) se dejaron activos; Outsourcing con unidad UNIDAD y Cebollines con PACK por falta de dato; cartón A/B/C con la misma tarifa del proyecto.
+
+**Pruebas · Windows 11, Node 22.23.4, PostgreSQL 16.15, Chrome + playwright-core:**
+
+| Caso | Resultado |
+|---|---|
+| `cd server && npx tsc --noEmit && npx vitest run` | PASA 128/128 (nueva `test/maquilas-sedes.test.ts`; `v2.test.ts` actualizada a la lista por sede) |
+| `cd web && npx tsc -b && npx vitest run` | PASA 10/10 |
+| Copia de la base local `omnia` (001-003 con datos) migrada hasta 008 | PASA: 618 demo en Omnia, 10 demo a Z11; 7 registros reales (anulados, de la prueba E2E) quedan en Omnia; 23 proyectos como la lista |
+| Recorrido en Chrome (PC 1440 y teléfono 390) contra esa copia | PASA 43/43: San Juan cartón A/B/C suma 175.5; Xporta no inicia sin confirmación; Ajustes por sede; sin errores de página |
+| `e2e/smoke.mjs` (ahora captura en Fritolay › Outsourcing) | PASA sin errores de consola |
+
+**No verificado:** Supabase (008 no aplicada), `app/` y `demo/` sin regenerar (la demo grabada no trae `sedeId` y sus listas de proyectos saldrían vacías hasta regenerarla).
+
+### 2026-10-30 · Decisiones de Ing. Carmen y ajustes
+
+**DECISIÓN APROBADA (Ing. Carmen):** commit autorizado; dos categorías de servicio, Maquila (la principal) y Outsourcing (Unisuper, Dollar City, Revisión y Sunchips); Outsourcing no es un proyecto; las desactivaciones de Xporta y Licorera son correctas; cartón A/B/C con la misma tarifa; la actividad es obligatoria; una sede puede tener solo maquilas.
+
+- **Hecho:** `projects.category` (MAQUILA/OUTSOURCING) en 008, sin el proyecto «Outsourcing»; la orden exige actividad si el proyecto tiene actividades; el precierre acepta producción, horas o maquilas y avisa de maquilas abiertas (`services/periods.ts`); categoría en Ajustes y en las listas de Maquilas; smoke ahora captura en Fritolay › Descargas.
+- **Verificado (Windows 11, Node 22.23.4, PG 16.15, Chrome):** server 129/129; web 10/10; copia de `omnia` migrada 001→008 (Omnia 6 de maquila y 4 de outsourcing; Z11 8; San Juan 1); recorrido en Chrome 47/47 en PC y teléfono sin errores; smoke sin errores de consola.
+- **Pendiente (autorización de Ing. Carmen):** push; aplicar 008 en el Supabase de prueba (`node scripts/supabase-base.mjs migrar`) y redesplegar la función (mientras tanto allí no se pueden crear órdenes de maquila); regenerar `app/` y `demo/`. Sin dato: unidad de Cebollines (hoy PACK). Proyectos de Z11 sin actividades: se programan solo con el proyecto hasta que se les agreguen.
+
+### 2026-10-30 · Cebollines, actividades de Z11 y push
+
+**DECISIÓN APROBADA (Ing. Carmen):** Cebollines es el cliente y su proyecto es «Armado de packs», registrado en packs o en bandejas (las dos opciones); los proyectos de Z11 son los de su lista, donde proyecto y actividad son lo mismo; push a `main` autorizado.
+
+- **Hecho:** en 008, `projects.alt_units` (otras unidades admitidas; Cebollines: BANDEJA además de PACK), Cebollines renombrado a «Armado de packs» y una actividad con el mismo nombre para cada proyecto activo de Z11. La orden valida la unidad si el proyecto tiene otras unidades; en la web la unidad se elige de la lista y en Ajustes se editan las «Otras unidades».
+- **Verificado (Windows 11, Node 22.23.4, PG 16.15, Chrome):** server 130/130, web 10/10; copia de `omnia` migrada 001→008; recorrido en Chrome 51/51 (PC y teléfono) sin errores; smoke sin errores de consola.
+- **Pendiente (autorización de Ing. Carmen):** aplicar 008 en el Supabase de prueba, redesplegar la función y regenerar `app/` y `demo/`.

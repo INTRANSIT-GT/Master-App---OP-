@@ -50,7 +50,7 @@ interface Ent {
   json?: string[];                              // columnas jsonb
   natural?: (b: any) => unknown[];              // huella natural para detectar duplicados de captura
   keyed?: boolean;                              // la tabla tiene source_key
-  check?: (b: any, c: PoolClient, s: Record<string, any>) => Promise<void> | void;
+  check?: (b: any, c: PoolClient, s: Record<string, any>, sede?: string) => Promise<void> | void;   // sede: se exige que el proyecto sea de esa sede
   lock?: (row: any) => string | null;           // motivo por el que el registro no se puede editar/anular directamente
   searchCol?: string;
 }
@@ -72,6 +72,12 @@ async function resolveProject(c: PoolClient, b: any) {
   const p = (await c.query(`SELECT p.id FROM projects p JOIN clients cl ON cl.id = p.client_id WHERE cl.code = 'FRITOLAY' AND $1 = ANY(p.kinds)`, [b.kind])).rows[0];
   if (p) b.projectId = p.id;
   return p;
+}
+// Los proyectos son de una sede: no se registra trabajo de una sede en el proyecto de otra.
+async function assertProjectSede(c: PoolClient, projectId: string | undefined, sede: string | undefined) {
+  if (!projectId || !sede) return;
+  const p = (await c.query('SELECT name, sede_id FROM projects WHERE id = $1', [projectId])).rows[0];
+  if (p && p.sede_id !== sede) throw bad(`El proyecto «${p.name}» es de otra sede.`);
 }
 async function checkLabel(c: PoolClient, code?: string | null) {
   if (!code) return;
@@ -109,15 +115,16 @@ export const ENTITIES: Record<'production' | 'hours' | 'requirements' | 'scrap' 
   production: {
     entity: 'produccion', table: 'production_records', dateCol: 'record_date', schema: prodSchema, map: prodMap, json: ['data'], keyed: true,
     natural: (b) => [b.kind, b.projectId, b.date, b.refDoc, b.sap, b.productName, b.boxes, b.units, b.labelId, b.reviewUnits, b.badBoxes, b.containerType],
-    check: async (b, c) => {
-      await resolveProject(c, b); prodRules(b); await checkLabel(c, b.labelId);
+    check: async (b, c, _s, sede) => {
+      await assertProjectSede(c, b.projectId, sede); await resolveProject(c, b); prodRules(b); await checkLabel(c, b.labelId);
       if (['maq', 'dc', 'uni'].includes(b.kind) && b.sap && !b.productName) b.productName = (await c.query('SELECT name FROM products WHERE sap = $1', [b.sap])).rows[0]?.name;   // la descripción sale del catálogo SAP
     },
   },
   hours: {
     entity: 'horas', table: 'hours_records', dateCol: 'record_date', schema: hoursSchema, map: hoursMap, keyed: true,
     natural: (b) => [b.kind, b.projectId, b.date, b.egressNo, b.area, b.activity, b.workerName, b.hoursDay, b.hoursNight],
-    check: async (b, c) => {
+    check: async (b, c, _s, sede) => {
+      await assertProjectSede(c, b.projectId, sede);
       if (!(b.hoursDay > 0 || b.hoursNight > 0)) throw bad('Indica horas diurnas o nocturnas.');
       if (b.kind === 'imp' && b.hoursDay + b.hoursNight > 24) throw bad('Máximo 24 horas por día.');
       if (b.projectId && !(await c.query('SELECT 1 FROM projects WHERE id = $1 AND active', [b.projectId])).rowCount) throw bad('El proyecto no existe o está inactivo.');
@@ -137,7 +144,8 @@ export const ENTITIES: Record<'production' | 'hours' | 'requirements' | 'scrap' 
   supply: {
     entity: 'insumo_mov', table: 'supply_movements', dateCol: 'move_date', schema: supplySchema, map: supplyMap, searchCol: 'notes',
     lock: (r) => (r.po_line_id ? 'Este movimiento lo generó una orden de compra completada; anula la orden para revertirlo.' : null),
-    check: async (b, c) => {
+    check: async (b, c, _s, sede) => {
+      await assertProjectSede(c, b.projectId, sede);
       if (!(await c.query(`SELECT 1 FROM inv_items WHERE id = $1 AND kind = 'ins'`, [b.itemId])).rowCount) throw bad('Selecciona un insumo del catálogo.');
       if (b.projectId && !(await c.query('SELECT 1 FROM projects WHERE id = $1', [b.projectId])).rowCount) throw bad('El proyecto no existe.');
       if (b.area && !AREAS.some((a) => a[0] === b.area)) throw bad('Área inválida.');
@@ -169,7 +177,7 @@ export async function createRecord(key: EntKey, user: AuthUser, body: unknown) {
   return tx(async (c) => {
     const b: any = parse(e.schema, body), s = await getSettings(c);
     await assertDateOk(b.date, s);
-    await e.check?.(b, c, s);
+    await e.check?.(b, c, s, sede);
     derive(b, s);
     const status = b.status ?? 'confirmado';
     let sourceKey: string | null = null;
@@ -218,7 +226,7 @@ export async function updateRecord(key: EntKey, user: AuthUser, id: string, body
     if (full.kind === 'wm' && !('billableBoxes' in parsedPatch) && ['units', 'boxes', 'unitsPerBox'].some((k) => k in parsedPatch)) delete full.billableBoxes;
     const s = await getSettings(c);
     await assertDateOk(full.date, s);
-    await e.check?.(full, c, s);
+    await e.check?.(full, c, s, 'projectId' in parsedPatch && parsedPatch.projectId !== cur.project_id ? sede : undefined);   // un registro viejo conserva su proyecto
     derive(full, s);
     const sets: string[] = [], vals: unknown[] = [];
     for (const [k, col] of Object.entries(e.map)) if (k in full && JSON.stringify(full[k]) !== JSON.stringify(curApi[k])) { sets.push(`${col} = $${vals.length + 1}`); vals.push(e.json?.includes(col) ? JSON.stringify(full[k]) : full[k]); }

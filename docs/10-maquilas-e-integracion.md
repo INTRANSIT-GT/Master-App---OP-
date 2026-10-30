@@ -94,6 +94,51 @@ Secciones de Operaciones (visibilidad editable, por defecto todas y luego se qui
 Las acciones (crear, cerrar, validar, facturar) son reglas de negocio y no se editan desde
 la matriz; lo editable es qué secciones ve cada perfil.
 
+### 2.4 Proyectos y actividades por sede (migración 008)
+
+FUENTE: lista de sedes, clientes, proyectos y actividades entregada por Ing. Carmen el 2026-10-30.
+DECISIONES APROBADAS (Ing. Carmen, 2026-10-30): dos categorías de servicio, **Maquila** (la principal) y
+**Outsourcing**; la actividad es obligatoria; el cartón A, B y C se cobra con la misma tarifa; una sede puede
+tener solo maquilas; Cebollines registra en packs o bandejas; en Z11 cada proyecto es a la vez su actividad.
+
+Los **clientes son comunes** (Fritolay trabaja en Omnia y en San Juan); los **proyectos son de una
+sede** (`projects.sede_id`). Cada proyecto puede tener:
+
+| Campo | Para qué | Ejemplo |
+|---|---|---|
+| Categoría (`category`) | categoría de servicio: Maquila u Outsourcing | Unisuper, Dollar City, Revisión, Sunchips: Outsourcing |
+| Actividades (`project_activities`) | qué parte del proyecto se trabaja; si el proyecto tiene actividades, elegir una es obligatorio | Walmart: revisión, trasiego, cambio de etiqueta, flejado |
+| Confirmación previa (`confirm_label`) | la orden no se inicia sin registrar lo que confirmó el cliente | Xporta: exportador; Alnost: producto y fecha validados por WhatsApp |
+| Desglose de salida (`output_parts`) | al cerrar se registra cada parte y la cantidad producida es su suma | San Juan: cartón A, B y C |
+| Otras unidades (`alt_units`) | unidades admitidas en la orden además de la del proyecto | Cebollines: PACK o BANDEJA |
+| Nota de proceso (`process_notes`) | se muestra al programar | Cebollines: manga, túnel, etiqueta EAN y etiqueta en blanco |
+
+| Sede | Cliente | Proyectos (actividades) |
+|---|---|---|
+| Omnia | Fritolay | Maquila: Maquila (armado de ofertas y packs) · Walmart (revisión, trasiego, cambio de etiqueta, flejado) · Etiquetado · Descargas (de contenedores) · Embolsado Cobán (de ofertas) · Crackets (ristra). Outsourcing: Unisuper · Dollar City · Revisión · Sunchips |
+| Z11 | Coca Cola | Trasiego de envase · Trasiego de tarimas · Armado de packs · Desarme (en Z11 cada proyecto es también su única actividad) |
+| Z11 | Alnost | Validación de fechas (confirmación previa) |
+| Z11 | Xporta | Etiquetado (confirmación previa del exportador) |
+| Z11 | Cebollines | Armado de packs (nota de proceso; en packs o bandejas) |
+| Z11 | Licorera | Maquila de ofertas |
+| San Juan | Fritolay | Maquilado de cartón (amarre, tachado, clasificación; salida en cartón A, B y C) |
+
+- Outsourcing es una categoría, no un proyecto. Xporta «Validación de fechas» y Licorera «Etiquetado» y
+  «Packs» se **desactivaron** (no se borran; se reactivan en Ajustes).
+- Los registros **de demostración** de clientes que pasaron a Z11 se movieron a Z11. Un registro real
+  nunca cambia de sede: si su proyecto es de otra sede, queda en su sede como historial.
+- Producción, horas, insumos y maquilas rechazan un proyecto de otra sede. En la web, las listas para
+  elegir muestran solo los proyectos de la sede actual; Ajustes › Clientes y proyectos administra los de
+  la sede actual (actividades, confirmación, desglose y nota).
+- La tarifa sigue siendo por proyecto: el cartón A, B y C se cobra con la misma tarifa.
+- Cierre de periodo: basta con producción, horas **o maquilas** (una sede puede tener solo maquilas). Las
+  maquilas programadas o en proceso quedan como aviso del precierre.
+
+**Corrección incluida en 008:** `004_maquilas.sql` llamaba a `assert_period_open(fecha)`, función que
+`003_sedes.sql` había reemplazado por `assert_period_open(sede, fecha)`. Ninguna orden de maquila podía
+crearse. 008 rehace los dos candados de periodo por sede. Además, la validación de maquilas fallaba al
+guardar quién validó (parámetro sin tipo en `services/maquilas.ts`); se corrigió en el código.
+
 ## 3. Qué se cambiará en Transportes (después del lanzamiento)
 
 Nada de esto se aplica ahora.
@@ -161,6 +206,7 @@ sin convivencia. Las tarifas siguen separadas: `master.tarifas` para viajes y
 | 7 | Transportes | `origen/lineas`, factura de maquila y tablero consolidado | después de producción |
 | 8 | Ambos | clientes compartidos, migración de datos y pruebas de volumen | después de producción |
 | 9 | OP | sincronización con GEOVICTORIA | cuando la API esté disponible |
+| 5b | OP | proyectos por sede, categorías, actividades, confirmación previa y desglose (migración 008) | **hecho** (en `main`); falta aplicarlo en Supabase |
 
 ### Estado desplegado al 2026-10-28
 
@@ -168,7 +214,8 @@ sin convivencia. Las tarifas siguen separadas: `master.tarifas` para viajes y
 - Función **`operaciones`** desplegada; las rutas `/api/maquila/*` responden 401 sin token.
 - Web publicada en Pages: Maquilas con Programación, Personas, Validación y Facturación.
 - Tipos del servidor y de la web en verde; pruebas de la web 10/10.
-- Pruebas de integración del servidor pendientes: requieren PostgreSQL local.
+- Pruebas de integración del servidor pendientes: requieren PostgreSQL local. *(2026-10-30: se
+  corrieron; 5 fallaban porque no se podía crear ninguna orden; lo corrige 008, ver 2.4.)*
 - El cargo queda **ABIERTO → CERRADO** y puede anularse; la factura y su número viven en el
   módulo comercial compartido (fase 7, después de la salida a producción de Transportes).
 

@@ -57,7 +57,7 @@ export interface InsertMeta { sede: string; userId?: string | null; batchId?: st
 
 /** Inserta registros de producción ignorando los que ya existen (misma llave natural). Devuelve insertados y omitidos. */
 export async function defaultProjectByKind(q: Q): Promise<Record<string, string>> {
-  const r = await q.query(`SELECT p.id, p.kinds FROM projects p JOIN clients c ON c.id = p.client_id WHERE c.code = 'FRITOLAY'`);
+  const r = await q.query(`SELECT p.id, p.kinds FROM projects p JOIN clients c ON c.id = p.client_id WHERE c.code = 'FRITOLAY' AND NOT ('gen' = ANY(p.kinds))`);
   const o: Record<string, string> = {}; for (const p of r.rows) for (const k of p.kinds) o[k] = p.id; return o;
 }
 export async function insertProdRows(q: Q, rows: ProdRow[], m: InsertMeta) {

@@ -128,7 +128,7 @@ function Insumos({ items, projects, clients }: { items: any[]; projects: any[]; 
       <RecordsPanel title="Movimientos de insumos" path="insumos/movimientos" createPerm="inventario.gestionar" hint="Ingresos manuales y consumo ligado a un proyecto de producción (el costo se carga al área)"
         fields={[{ k: 'date', label: 'Fecha', type: 'date', required: true }, { k: 'itemId', label: 'Insumo', type: 'select', required: true, options: items.map((i) => [i.id, i.name] as [string, string]) },
           { k: 'kind', label: 'Movimiento', type: 'select', required: true, options: [['ingreso', 'Ingreso'], ['consumo', 'Consumo']] }, { k: 'qty', label: 'Cantidad', type: 'num', required: true },
-          { k: 'projectId', label: 'Proyecto (consumo)', type: 'select', w: 2, options: projects.filter((p) => p.active).map((p) => [p.id, pl(p.id)] as [string, string]) }, { k: 'notes', label: 'Notas', type: 'text', w: 2 }]}
+          { k: 'projectId', label: 'Proyecto (consumo)', type: 'select', w: 2, options: projects.filter((p) => p.active && p.sedeId === meta?.sede?.id).map((p) => [p.id, pl(p.id)] as [string, string]) }, { k: 'notes', label: 'Notas', type: 'text', w: 2 }]}
         columns={[{ h: 'Fecha', cell: D }, { h: 'Insumo', cell: (r) => items.find((i) => i.id === r.itemId)?.name ?? r.itemId }, { h: 'Movimiento', cell: (r) => (r.kind === 'ingreso' ? 'Ingreso' : 'Consumo') + (r.poLineId ? ' (OC)' : '') },
           { h: 'Cantidad', n: true, cell: (r) => nf2(r.qty) }, { h: 'Proyecto', cell: (r) => (r.projectId ? pl(r.projectId) : '') }, { h: 'Notas', cell: (r) => r.notes }]} />
     </>
