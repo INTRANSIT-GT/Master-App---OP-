@@ -26,7 +26,7 @@ describe('catálogo por sede (lista del 2026-10-30)', () => {
       .map((p: any) => `${cat.clients.find((c: any) => c.id === p.clientId).code} · ${p.name}`).sort();
     expect(activos('SAN-JUAN')).toEqual(['FRITOLAY · Maquilado de cartón']);
     expect(activos('Z11')).toEqual([
-      'ALNOST · Validación de fechas', 'CEBOLLINES · Maquila de packs', 'COCACOLA · Armado de packs', 'COCACOLA · Desarme',
+      'ALNOST · Validación de fechas', 'CEBOLLINES · Armado de packs', 'COCACOLA · Armado de packs', 'COCACOLA · Desarme',
       'COCACOLA · Trasiego de envase', 'COCACOLA · Trasiego de tarimas', 'LICORERA · Maquila de ofertas', 'XPORTA · Etiquetado',
     ]);
     const omnia = activos('OMNIA');
@@ -49,7 +49,11 @@ describe('catálogo por sede (lista del 2026-10-30)', () => {
     expect(carton.outputParts).toEqual(['Cartón A', 'Cartón B', 'Cartón C']);
     expect(proj('Z11', 'ALNOST', 'Validación de fechas').confirmLabel).toBeTruthy();
     expect(proj('Z11', 'XPORTA', 'Etiquetado').confirmLabel).toMatch(/exportador/i);
-    expect(proj('Z11', 'CEBOLLINES', 'Maquila de packs').processNotes).toMatch(/túnel/);
+    const ceb = proj('Z11', 'CEBOLLINES', 'Armado de packs');
+    expect(ceb.processNotes).toMatch(/túnel/);
+    expect([ceb.um, ...ceb.altUnits]).toEqual(['PACK', 'BANDEJA']);
+    // en Z11 cada proyecto es a la vez su actividad
+    for (const p of cat.projects.filter((x: any) => x.sedeId === 'Z11' && x.active)) expect(p.activities.map((a: any) => a.name)).toEqual([p.name]);
   });
 
   it('un proyecto nuevo nace en la sede actual y admite actividades', async () => {
@@ -101,7 +105,7 @@ describe('órdenes de maquila por sede', () => {
   it('Xporta: no inicia sin la confirmación del exportador', async () => {
     const z11 = en('Z11'), today = (await z11.get('/api/meta')).body.today;
     const xp = proj('Z11', 'XPORTA', 'Etiquetado');
-    const o = await z11.post('/api/maquila/ordenes').send({ date: today, clientId: xp.clientId, projectId: xp.id, targetQty: 200 });
+    const o = await z11.post('/api/maquila/ordenes').send({ date: today, clientId: xp.clientId, projectId: xp.id, activityId: xp.activities[0].id, targetQty: 200 });
     expect(o.status).toBe(201);
     const s = await z11.post(`/api/maquila/ordenes/${o.body.id}/iniciar`).send({ startedAt: hace(30) });
     expect(s.status).toBe(409);
@@ -116,9 +120,23 @@ describe('órdenes de maquila por sede', () => {
   it('Alnost: la confirmación puede venir al programar', async () => {
     const z11 = en('Z11'), today = (await z11.get('/api/meta')).body.today;
     const vf = proj('Z11', 'ALNOST', 'Validación de fechas');
-    const o = await z11.post('/api/maquila/ordenes').send({ date: today, clientId: vf.clientId, projectId: vf.id, clientConfirmation: 'Producto y fecha validados por WhatsApp' });
+    const o = await z11.post('/api/maquila/ordenes').send({ date: today, clientId: vf.clientId, projectId: vf.id, activityId: vf.activities[0].id, clientConfirmation: 'Producto y fecha validados por WhatsApp' });
     expect(o.status).toBe(201);
     expect((await z11.post(`/api/maquila/ordenes/${o.body.id}/iniciar`).send({ startedAt: hace(30) })).body.status).toBe('EN_PROCESO');
+  });
+
+  it('Cebollines: la orden se registra en packs o en bandejas', async () => {
+    const z11 = en('Z11'), today = (await z11.get('/api/meta')).body.today;
+    const ceb = proj('Z11', 'CEBOLLINES', 'Armado de packs'), base = { date: today, clientId: ceb.clientId, projectId: ceb.id, activityId: ceb.activities[0].id };
+    expect((await z11.post('/api/maquila/ordenes').send(base)).body.unit).toBe('PACK');
+    const b = await z11.post('/api/maquila/ordenes').send({ ...base, unit: 'bandeja' });
+    expect(b.status).toBe(201);
+    expect(b.body.unit).toBe('BANDEJA');
+    const caja = await z11.post('/api/maquila/ordenes').send({ ...base, unit: 'CAJA' });
+    expect(caja.status).toBe(400);
+    expect(caja.body.message).toMatch(/PACK o BANDEJA/);
+    expect((await z11.patch(`/api/maquila/ordenes/${b.body.id}`).send({ unit: 'CAJA', version: b.body.version })).status).toBe(400);
+    expect((await z11.patch(`/api/maquila/ordenes/${b.body.id}`).send({ unit: 'PACK', version: b.body.version })).body.unit).toBe('PACK');
   });
 
   it('San Juan: el cierre se presenta en cartón A, B y C y suma la cantidad', async () => {

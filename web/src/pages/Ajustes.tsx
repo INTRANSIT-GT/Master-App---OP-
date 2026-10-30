@@ -205,10 +205,10 @@ function Clientes() {
   const enSede = (cat?.projects ?? []).filter((p: any) => p.sedeId === sede?.id);
   const conProy = (cat?.clients ?? []).filter((c: any) => enSede.some((p: any) => p.clientId === c.id));
   const sinProy = (cat?.clients ?? []).filter((c: any) => !conProy.includes(c));
-  const abrir = (p: any) => setEd({ p, name: p.name, um: p.um, category: p.category ?? 'MAQUILA', processNotes: p.processNotes ?? '', confirmLabel: p.confirmLabel ?? '', parts: (p.outputParts ?? []).join(', '), nueva: '' });
+  const abrir = (p: any) => setEd({ p, name: p.name, um: p.um, category: p.category ?? 'MAQUILA', processNotes: p.processNotes ?? '', confirmLabel: p.confirmLabel ?? '', parts: (p.outputParts ?? []).join(', '), alt: (p.altUnits ?? []).join(', '), nueva: '' });
   const guardar = () => run(async () => {
-    const outputParts = ed.parts.split(',').map((x: string) => x.trim()).filter(Boolean);
-    await api.patch('/catalogo/proyectos/' + ed.p.id, { name: ed.name, um: ed.um, category: ed.category, processNotes: ed.processNotes, confirmLabel: ed.confirmLabel, outputParts });
+    const outputParts = ed.parts.split(',').map((x: string) => x.trim()).filter(Boolean), altUnits = ed.alt.split(',').map((x: string) => x.trim()).filter(Boolean);
+    await api.patch('/catalogo/proyectos/' + ed.p.id, { name: ed.name, um: ed.um, category: ed.category, altUnits, processNotes: ed.processNotes, confirmLabel: ed.confirmLabel, outputParts });
     setEd(null);
   }, 'Proyecto actualizado.');
   // las actividades se guardan al momento; se refresca el proyecto abierto con el catálogo nuevo
@@ -238,7 +238,7 @@ function Clientes() {
           <Card key={c.id} title={c.name} sub={`${sede?.name ?? ''}${c.active ? '' : ' · Cliente inactivo'}`} actions={edit && <button className="btn btn-sm" onClick={() => run(() => api.patch('/catalogo/clientes/' + c.id, { active: !c.active }), c.active ? 'Cliente desactivado.' : 'Cliente activado.')}>{c.active ? 'Desactivar cliente' : 'Activar cliente'}</button>}>
             <div className="tbl-wrap"><table className="tbl"><thead><tr><th>Proyecto</th><th>Categoría</th><th>U/M</th><th>Actividades</th><th>Antes de iniciar</th><th>Desglose de salida</th><th>Tipo</th><th>Estado</th><th /></tr></thead><tbody>
               {enSede.filter((p: any) => p.clientId === c.id).map((p: any) => (
-                <tr key={p.id} className={p.active ? '' : 'void'}><td>{p.name}{p.processNotes && <div className="muted" title={p.processNotes}>Con nota de proceso</div>}</td><td>{CAT[p.category] ?? p.category}</td><td>{p.um}</td>
+                <tr key={p.id} className={p.active ? '' : 'void'}><td>{p.name}{p.processNotes && <div className="muted" title={p.processNotes}>Con nota de proceso</div>}</td><td>{CAT[p.category] ?? p.category}</td><td>{[p.um, ...(p.altUnits ?? [])].join(' o ')}</td>
                   <td>{p.activities.filter((a: any) => a.active).map((a: any) => a.name).join(' · ') || '—'}</td>
                   <td>{p.confirmLabel || '—'}</td><td>{(p.outputParts ?? []).join(' · ') || '—'}</td>
                   <td>{p.kinds[0] === 'gen' ? 'Registro genérico' : 'Con motor de costo'}</td><td>{p.active ? <Pill kind="ok">Activo</Pill> : <Pill kind="warn">Inactivo</Pill>}</td>
@@ -255,6 +255,7 @@ function Clientes() {
             <div className="field"><label htmlFor="ep-k">Categoría</label><select id="ep-k" value={ed.category} onChange={(e) => setEd({ ...ed, category: e.target.value })}>{Object.entries(CAT).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></div>
             <div className="field w2"><label htmlFor="ep-c">Confirmación del cliente antes de iniciar</label><input id="ep-c" placeholder="Vacío = no se requiere" value={ed.confirmLabel} onChange={(e) => setEd({ ...ed, confirmLabel: e.target.value })} /><small>p. ej. «Exportador confirmado por el cliente»</small></div>
             <div className="field w2"><label htmlFor="ep-d">Desglose de la cantidad producida</label><input id="ep-d" placeholder="Vacío = una sola cantidad" value={ed.parts} onChange={(e) => setEd({ ...ed, parts: e.target.value })} /><small>Separado por comas, p. ej. «Cartón A, Cartón B, Cartón C»</small></div>
+            <div className="field w2"><label htmlFor="ep-o">Otras unidades admitidas</label><input id="ep-o" placeholder="Vacío = cualquiera" value={ed.alt} onChange={(e) => setEd({ ...ed, alt: e.target.value })} /><small>Además de la unidad de medida, separadas por comas; p. ej. «BANDEJA»</small></div>
             <div className="field w3"><label htmlFor="ep-p">Cómo se trabaja (se muestra al programar)</label><textarea id="ep-p" rows={3} value={ed.processNotes} onChange={(e) => setEd({ ...ed, processNotes: e.target.value })} /></div>
           </div>
           <h4 style={{ margin: '12px 0 6px' }}>Actividades</h4>

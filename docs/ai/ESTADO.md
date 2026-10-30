@@ -9,7 +9,7 @@ Commit y push a `main` de OP y Transportes, y la demo pública en GitHub Pages: 
 **OP al estilo Transportes (GitHub Pages + Supabase)**, en el Supabase de prueba, corrigiendo antes los 2 hallazgos de cálculo: pedido el 2026-10-25 en la sesión de Ing. Carmen («el mismo, todo es una prueba; ejecuta de una vez, no hay producción»).
 **App operativa (2026-10-27, Ing. Carmen):** quitar la barra «DATOS DE DEMOSTRACIÓN», retirar Dashboard y Resumen, agregar modo oscuro; quitar el aviso del PDF y Excel; commit.
 **Entrada y sedes (2026-10-27, Ing. Carmen):** entrada «Herramienta de Operaciones» y textos fuera (commit); **sedes** con datos separados y sedes asignadas por usuario, con migración del esquema `operaciones` del Supabase de prueba y redespliegue de la función.
-**Maquilas por sede (2026-10-30, Ing. Carmen):** adaptar la app a los clientes, proyectos y actividades de cada sede (lista entregada en la sesión). Commit autorizado y hecho; push, aplicar en Supabase y redesplegar esperan su autorización.
+**Maquilas por sede (2026-10-30, Ing. Carmen):** adaptar la app a los clientes, proyectos y actividades de cada sede (lista entregada en la sesión). Commit y push a `main` autorizados y hechos; aplicar en Supabase y redesplegar esperan su autorización.
 No autorizado: otros cambios en Supabase (nada de Transportes), servidores reales ni otras correcciones de negocio.
 
 ## Base
@@ -25,7 +25,7 @@ No autorizado: otros cambios en Supabase (nada de Transportes), servidores reale
 - **App operativa (2026-10-27):** sin barra de demostración; menú de 6 opciones (Producción, Horas y personal, Compras, Inventario, Comercial, Ajustes), abre en Producción; cierre y reapertura de periodo en Ajustes › Periodos; modo claro/oscuro; Excel y PDF sin aviso de demostración. Publicado (`e6972ab`) y Edge Function redesplegada; descargas verificadas en vivo. Verificado en local (server 97/97, web 10/10, smoke); `app/` y `demo/` regenerados. Ver TRASPASO.
 - **Sedes (2026-10-27):** SEDE FRITOLAY OMNIA, SEDE FRITOLAY SAN JUAN, SEDE HILO, SEDE INTRANSIT Z11. Cada sede ve solo sus registros, periodos, inventario, órdenes, cobro, Excel/PDF y bitácora; catálogos comunes. Administrador en todas; los demás, en las asignadas (Ajustes › Usuarios). Migración `003_sedes.sql` aplicada en local y en Supabase (lo existente a Omnia); función redesplegada y verificada en vivo con lecturas. Server 110/110, web 10/10. Ver TRASPASO.
 - **Entrada «Herramienta de Operaciones» (2026-10-27):** publicada (`74be7a0`, `6490f83`).
-- **Maquilas por sede (2026-10-30, commit local sin push):** migración `008` (proyectos por sede, categorías Maquila/Outsourcing, actividades obligatorias, confirmación previa del cliente, desglose de salida; corrige el candado de periodo de maquilas que impedía crear órdenes), validación de maquilas corregida y cierre de mes con solo maquilas. Server 129/129, web 10/10, smoke y recorrido en Chrome (PC y teléfono) sin errores. **El Supabase de prueba sigue sin 008: allí no se pueden crear órdenes de maquila.** Ver `docs/10` §2.4 y TRASPASO.
+- **Maquilas por sede (2026-10-30, en `main`; Supabase sin aplicar):** migración `008` (proyectos por sede, categorías Maquila/Outsourcing, actividades obligatorias (en Z11 cada proyecto es su actividad), Cebollines en packs o bandejas, confirmación previa del cliente, desglose de salida; corrige el candado de periodo de maquilas que impedía crear órdenes), validación de maquilas corregida y cierre de mes con solo maquilas. Server 130/130, web 10/10, smoke y recorrido en Chrome (PC y teléfono, 51/51) sin errores. **El Supabase de prueba sigue sin 008: allí no se pueden crear órdenes de maquila.** Ver `docs/10` §2.4 y TRASPASO.
 - **Demo estática** en `demo/` (solo lectura, sin cuenta), sigue publicada.
 - **OP corre en local:** PostgreSQL 16.15, bases `omnia` (recreada hoy: seed demo + mock de compras) y `omnia_test`; API :3001 y web :5173 en modo dev.
 - Kit de Claude, hook, EOS (`eos/`, 2026.10.25.3) y bitácora: ver TRASPASO.
@@ -37,7 +37,7 @@ No autorizado: otros cambios en Supabase (nada de Transportes), servidores reale
 - La prueba integrada usa un Transportes de relleno (`e2e/integrado/transportes-stub/`).
 
 ## Siguiente acción
-**Maquilas por sede:** Ing. Carmen autoriza (1) push, (2) aplicar `008` en el Supabase de prueba y redesplegar la función, (3) regenerar `app/` y `demo/`; y confirma la unidad de Cebollines (hoy PACK).
+**Maquilas por sede:** Ing. Carmen autoriza aplicar `008` en el Supabase de prueba (`node scripts/supabase-base.mjs migrar`), redesplegar la función y regenerar `app/` y `demo/`. Mientras tanto, en la app publicada no se pueden crear órdenes de maquila.
 Ing. Carmen asigna las sedes de su equipo en Ajustes › Usuarios y confirma qué catálogos deben ser propios de cada sede (hoy comunes). Revisa la app en Pages con la cuenta `op-prueba-admin@intransit.test` (clave en `<repos>/.eos/local/op-supabase-prueba.json`) y da acceso a su equipo en Ajustes › Usuarios. Confirmar las decisiones tomadas en su sesión (alcance de NORA, PostgreSQL, publicación, OP en Supabase de prueba) y si el Supabase `bocgzjupocnvjehklxhs` tiene datos reales de Transportes (`master.viajes` tiene miles de filas).
 
 ## Bloqueos y decisiones

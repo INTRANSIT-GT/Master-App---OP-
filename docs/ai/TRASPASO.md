@@ -309,3 +309,11 @@ Comando: `node scripts/intransit-startup.cjs` con JSON sintético por stdin, en 
 - **Hecho:** `projects.category` (MAQUILA/OUTSOURCING) en 008, sin el proyecto «Outsourcing»; la orden exige actividad si el proyecto tiene actividades; el precierre acepta producción, horas o maquilas y avisa de maquilas abiertas (`services/periods.ts`); categoría en Ajustes y en las listas de Maquilas; smoke ahora captura en Fritolay › Descargas.
 - **Verificado (Windows 11, Node 22.23.4, PG 16.15, Chrome):** server 129/129; web 10/10; copia de `omnia` migrada 001→008 (Omnia 6 de maquila y 4 de outsourcing; Z11 8; San Juan 1); recorrido en Chrome 47/47 en PC y teléfono sin errores; smoke sin errores de consola.
 - **Pendiente (autorización de Ing. Carmen):** push; aplicar 008 en el Supabase de prueba (`node scripts/supabase-base.mjs migrar`) y redesplegar la función (mientras tanto allí no se pueden crear órdenes de maquila); regenerar `app/` y `demo/`. Sin dato: unidad de Cebollines (hoy PACK). Proyectos de Z11 sin actividades: se programan solo con el proyecto hasta que se les agreguen.
+
+### 2026-10-30 · Cebollines, actividades de Z11 y push
+
+**DECISIÓN APROBADA (Ing. Carmen):** Cebollines es el cliente y su proyecto es «Armado de packs», registrado en packs o en bandejas (las dos opciones); los proyectos de Z11 son los de su lista, donde proyecto y actividad son lo mismo; push a `main` autorizado.
+
+- **Hecho:** en 008, `projects.alt_units` (otras unidades admitidas; Cebollines: BANDEJA además de PACK), Cebollines renombrado a «Armado de packs» y una actividad con el mismo nombre para cada proyecto activo de Z11. La orden valida la unidad si el proyecto tiene otras unidades; en la web la unidad se elige de la lista y en Ajustes se editan las «Otras unidades».
+- **Verificado (Windows 11, Node 22.23.4, PG 16.15, Chrome):** server 130/130, web 10/10; copia de `omnia` migrada 001→008; recorrido en Chrome 51/51 (PC y teléfono) sin errores; smoke sin errores de consola.
+- **Pendiente (autorización de Ing. Carmen):** aplicar 008 en el Supabase de prueba, redesplegar la función y regenerar `app/` y `demo/`.

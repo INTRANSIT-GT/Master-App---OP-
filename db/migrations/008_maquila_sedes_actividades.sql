@@ -49,12 +49,14 @@ ALTER TABLE projects DROP CONSTRAINT projects_client_id_code_key, ADD CONSTRAINT
 CREATE INDEX projects_sede ON projects (sede_id, active, sort);
 
 -- Cómo se trabaja el proyecto (se muestra al programar), confirmación que el cliente debe dar antes de iniciar
--- (vacía = no requiere) y partes en que se desglosa la cantidad producida (vacía = una sola cantidad).
+-- (vacía = no requiere), partes en que se desglosa la cantidad producida (vacía = una sola cantidad) y otras
+-- unidades en que se puede registrar la orden además de la del proyecto (vacía = cualquiera).
 ALTER TABLE projects
   ADD COLUMN category      text NOT NULL DEFAULT 'MAQUILA' CHECK (category IN ('MAQUILA', 'OUTSOURCING')),
   ADD COLUMN process_notes text,
   ADD COLUMN confirm_label text,
-  ADD COLUMN output_parts  text[] NOT NULL DEFAULT '{}';
+  ADD COLUMN output_parts  text[] NOT NULL DEFAULT '{}',
+  ADD COLUMN alt_units     text[] NOT NULL DEFAULT '{}';
 
 -- ───────── actividades de cada proyecto ─────────
 CREATE TABLE project_activities (
@@ -100,11 +102,14 @@ SELECT 'Z11', c.id, v.code, v.name, ARRAY['gen'], v.um, v.sort, v.confirm, v.not
   FROM clients c JOIN (VALUES
     ('XPORTA', 'ETQ', 'Etiquetado', 'UNIDAD', 2, 'Exportador confirmado por el cliente',
      'El cliente confirma qué exportador se lleva el producto; con eso se imprimen y completan las etiquetas.'),
-    ('CEBOLLINES', 'PACKS', 'Maquila de packs', 'PACK', 1, NULL,
+    ('CEBOLLINES', 'PACKS', 'Armado de packs', 'PACK', 1, NULL,
      'Entran cajas (p. ej. 12 unidades de salsa verde y 12 de salsa roja). Se sacan, se limpian y se juntan con una manga; pasan por el túnel para que se adhiera; se coloca la etiqueta EAN y una etiqueta en blanco que cubre los códigos de barra. Salida: bandejas con packs.'),
     ('LICORERA', 'OFE', 'Maquila de ofertas', 'UNIDAD', 3, NULL, NULL)
   ) AS v(client, code, name, um, sort, confirm, notes) ON v.client = c.code
 ON CONFLICT (sede_id, client_id, code) DO NOTHING;
+-- Cebollines: la orden se registra en packs o en bandejas (Ing. Carmen, 2026-10-30)
+UPDATE projects p SET alt_units = ARRAY['BANDEJA'] FROM clients c
+ WHERE c.id = p.client_id AND c.code = 'CEBOLLINES' AND p.code = 'PACKS' AND p.sede_id = 'Z11';
 
 -- SEDE FRITOLAY OMNIA: Fritolay (los proyectos ya están); Unisuper, Dollar City, Revisión y Sunchips son outsourcing
 UPDATE projects p SET category = 'OUTSOURCING' FROM clients c
@@ -135,6 +140,10 @@ SELECT p.id, v.acode, v.aname, v.sort
     ('SAN-JUAN', 'FRITOLAY', 'CARTON', 'CLAS', 'Clasificación de cartón', 3)
   ) AS v(sede, client, pcode, acode, aname, sort) ON v.sede = p.sede_id AND v.client = c.code AND v.pcode = p.code
 ON CONFLICT (project_id, code) DO NOTHING;
+-- Z11: en la lista cada proyecto es a la vez su actividad (como Etiquetado en Omnia); la actividad es obligatoria.
+INSERT INTO project_activities (project_id, code, name, sort)
+SELECT p.id, p.code, p.name, 1 FROM projects p WHERE p.sede_id = 'Z11' AND p.active
+ON CONFLICT (project_id, code) DO NOTHING;
 
 -- Los registros de DEMOSTRACIÓN de clientes que ahora son de Z11 se mueven a Z11 (eran de Omnia porque era la única sede).
 -- Solo is_demo: un registro real nunca cambia de sede en silencio.
@@ -158,5 +167,6 @@ WHERE o.status = 'VALIDADA' AND o.statement_id IS NULL;
 COMMENT ON COLUMN projects.sede_id IS 'Sede donde se trabaja el proyecto. Los clientes son comunes; los proyectos, de cada sede.';
 COMMENT ON COLUMN projects.category IS 'Categoría de servicio: MAQUILA (la principal) u OUTSOURCING.';
 COMMENT ON COLUMN projects.confirm_label IS 'Confirmación que el cliente da antes de iniciar (p. ej. exportador). Vacía = no requiere.';
+COMMENT ON COLUMN projects.alt_units IS 'Otras unidades admitidas en la orden además de um (p. ej. Cebollines: packs o bandejas). Vacía = cualquiera.';
 COMMENT ON COLUMN projects.output_parts IS 'Partes en que se desglosa la cantidad producida (p. ej. cartón A/B/C). Vacía = una sola cantidad.';
 COMMENT ON TABLE project_activities IS 'Actividades de un proyecto (p. ej. Walmart: revisión, trasiego, cambio de etiqueta, flejado).';

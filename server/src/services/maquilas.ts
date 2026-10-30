@@ -94,7 +94,7 @@ const ORDER_COLS = `o.id, o.order_date AS "date", o.shift, o.status, o.sap, o.pr
   o.project_id AS "projectId", p.name AS "projectName",
   o.activity_id AS "activityId", a.name AS "activityName", o.produced_detail AS "producedDetail",
   o.client_confirmation AS "clientConfirmation", o.confirmed_at AS "confirmedAt",
-  p.category, p.confirm_label AS "confirmLabel", p.output_parts AS "outputParts", p.process_notes AS "processNotes",
+  p.category, p.alt_units AS "altUnits", p.confirm_label AS "confirmLabel", p.output_parts AS "outputParts", p.process_notes AS "processNotes",
   (SELECT count(*)::int FROM maquila_assignments a WHERE a.order_id = o.id AND a.active) AS "people"`;
 const ORDER_FROM = `FROM maquila_orders o JOIN clients c ON c.id = o.client_id JOIN projects p ON p.id = o.project_id
   LEFT JOIN project_activities a ON a.id = o.activity_id`;
@@ -102,7 +102,7 @@ const ORDER_FROM = `FROM maquila_orders o JOIN clients c ON c.id = o.client_id J
 // El proyecto es del cliente y de la sede de la orden; la actividad es del proyecto y es obligatoria si el proyecto tiene actividades.
 async function assertProject(c: Q, sede: string, clientId: string, projectId: string, activityId?: string | null) {
   const p = (await c.query(
-    `SELECT p.id, p.name, p.um, p.active, p.sede_id, c.name AS client_name, c.active AS client_active
+    `SELECT p.id, p.name, p.um, p.alt_units, p.active, p.sede_id, c.name AS client_name, c.active AS client_active
      FROM projects p JOIN clients c ON c.id = p.client_id
      WHERE p.id = $1 AND p.client_id = $2`,
     [projectId, clientId],
@@ -119,6 +119,12 @@ async function assertProject(c: Q, sede: string, clientId: string, projectId: st
     throw bad(`Selecciona la actividad de «${p.name}».`);
   }
   return p;
+}
+
+// Si el proyecto admite otras unidades (p. ej. Cebollines: packs o bandejas), la orden usa una de ellas.
+function assertUnit(p: { name: string; um: string; alt_units: string[] }, unit: string) {
+  const ok = [p.um, ...(p.alt_units ?? [])].map((x) => x.toUpperCase());
+  if (p.alt_units?.length && !ok.includes(unit.toUpperCase())) throw bad(`«${p.name}» se registra en ${ok.join(' o ')}.`);
 }
 
 // ───────── personas ─────────
@@ -213,6 +219,7 @@ export async function createOrder(user: AuthUser, b: z.infer<typeof orderSchema>
   const sede = sedeDe(user);
   const id = await tx(async (c) => {
     const p = await assertProject(c, sede, b.clientId, b.projectId, b.activityId);
+    assertUnit(p, b.unit || p.um);
     const conf = b.clientConfirmation?.trim() || null;
     const r = await c.query(
       `INSERT INTO maquila_orders (sede_id, client_id, project_id, activity_id, order_date, shift, sap, product_name, unit, target_qty, notes, status, created_by,
@@ -237,7 +244,10 @@ export async function updateOrder(user: AuthUser, id: string, b: z.infer<typeof 
     const clientId = b.clientId ?? cur.client_id, projectId = b.projectId ?? cur.project_id;
     // al cambiar de proyecto, la actividad anterior deja de valer si no se envía otra
     const activityId = b.activityId !== undefined ? b.activityId || null : projectId !== cur.project_id ? null : cur.activity_id;
-    if (b.clientId || b.projectId || b.activityId !== undefined) await assertProject(c, sede, clientId, projectId, activityId);
+    if (b.clientId || b.projectId || b.activityId !== undefined || b.unit) {
+      const p = await assertProject(c, sede, clientId, projectId, activityId);
+      assertUnit(p, b.unit ?? cur.unit);
+    }
     const r = await c.query(
       `UPDATE maquila_orders SET
          order_date = coalesce($3::date, order_date), shift = coalesce($4, shift),

@@ -12,7 +12,7 @@ export const catalogRouter = Router();
 // Los proyectos son de una sede (los clientes, comunes). Se devuelven todos con su sedeId para que el historial conserve
 // sus nombres; las listas para elegir muestran solo los de la sede actual.
 const PROJ_COLS = `id, client_id AS "clientId", sede_id AS "sedeId", code, name, kinds, um, active, sort, category,
-  process_notes AS "processNotes", confirm_label AS "confirmLabel", output_parts AS "outputParts"`;
+  process_notes AS "processNotes", confirm_label AS "confirmLabel", output_parts AS "outputParts", alt_units AS "altUnits"`;
 const ACT_COLS = 'id, project_id AS "projectId", code, name, active, sort';
 
 catalogRouter.get('/catalogo', need('ver'), async (_req, res) => {
@@ -162,6 +162,7 @@ const projExtra = {
   confirmLabel: z.string().trim().max(120).nullable().optional(),
   outputParts: z.array(z.string().trim().min(1).max(40)).max(12).optional()
     .refine((v) => !v || new Set(v.map((x) => x.toUpperCase())).size === v.length, 'Las partes del desglose no se repiten.'),
+  altUnits: z.array(z.string().trim().min(1).max(20).transform((x) => x.toUpperCase())).max(6).optional(),   // otras unidades admitidas (p. ej. BANDEJA)
 };
 catalogRouter.post('/catalogo/proyectos', need('catalogo.editar'), async (req, res) => {
   const b = parse(z.object({ clientId: z.string().uuid(), name: z.string().trim().min(2).max(120), um: z.string().trim().min(1).max(20).default('UNIDAD'), ...projExtra }), req.body);
@@ -171,8 +172,8 @@ catalogRouter.post('/catalogo/proyectos', need('catalogo.editar'), async (req, r
     const code = codeOf(b.name);
     if ((await c.query('SELECT 1 FROM projects WHERE sede_id = $1 AND client_id = $2 AND code = $3', [sede, b.clientId, code])).rowCount) throw conflict('DUPLICADO', 'Ese cliente ya tiene un proyecto con ese nombre en esta sede.');
     const sort = (await c.query('SELECT coalesce(max(sort),0)+1 n FROM projects WHERE client_id = $1 AND sede_id = $2', [b.clientId, sede])).rows[0].n;
-    const r = await c.query(`INSERT INTO projects (sede_id, client_id, code, name, kinds, um, sort, process_notes, confirm_label, output_parts, category) VALUES ($1,$2,$3,$4,ARRAY['gen'],$5,$6,$7,$8,$9,$10) RETURNING ${PROJ_COLS}`,
-      [sede, b.clientId, code, b.name, b.um.toUpperCase(), sort, b.processNotes || null, b.confirmLabel || null, b.outputParts ?? [], b.category ?? 'MAQUILA']);
+    const r = await c.query(`INSERT INTO projects (sede_id, client_id, code, name, kinds, um, sort, process_notes, confirm_label, output_parts, category, alt_units) VALUES ($1,$2,$3,$4,ARRAY['gen'],$5,$6,$7,$8,$9,$10,$11) RETURNING ${PROJ_COLS}`,
+      [sede, b.clientId, code, b.name, b.um.toUpperCase(), sort, b.processNotes || null, b.confirmLabel || null, b.outputParts ?? [], b.category ?? 'MAQUILA', b.altUnits ?? []]);
     await audit(c, req.user!, 'proyecto', r.rows[0].id, 'crear', null, r.rows[0]); return { ...r.rows[0], activities: [] };
   }));
 });
@@ -182,8 +183,8 @@ catalogRouter.patch('/catalogo/proyectos/:id', need('catalogo.editar'), async (r
     const cur = (await c.query('SELECT * FROM projects WHERE id = $1 FOR UPDATE', [req.params.id])).rows[0]; if (!cur) throw notFound('Proyecto');
     const keep = (v: string | null | undefined, prev: string | null) => (v === undefined ? prev : v || null);   // sin enviar se conserva; '' o null la quita
     const r = await c.query(`UPDATE projects SET name = coalesce($2,name), um = coalesce($3,um), active = coalesce($4,active),
-        process_notes = $5, confirm_label = $6, output_parts = coalesce($7, output_parts), category = coalesce($8, category) WHERE id = $1 RETURNING ${PROJ_COLS}`,
-      [req.params.id, b.name ?? null, b.um?.toUpperCase() ?? null, b.active ?? null, keep(b.processNotes, cur.process_notes), keep(b.confirmLabel, cur.confirm_label), b.outputParts ?? null, b.category ?? null]);
+        process_notes = $5, confirm_label = $6, output_parts = coalesce($7, output_parts), category = coalesce($8, category), alt_units = coalesce($9, alt_units) WHERE id = $1 RETURNING ${PROJ_COLS}`,
+      [req.params.id, b.name ?? null, b.um?.toUpperCase() ?? null, b.active ?? null, keep(b.processNotes, cur.process_notes), keep(b.confirmLabel, cur.confirm_label), b.outputParts ?? null, b.category ?? null, b.altUnits ?? null]);
     await audit(c, req.user!, 'proyecto', cur.id, 'editar', cur, r.rows[0]); return r.rows[0];
   }));
 });

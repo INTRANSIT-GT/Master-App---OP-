@@ -70,7 +70,8 @@ function Programacion() {
     { k: 'sap', label: 'Producto (SAP)', type: 'text' },
     { k: 'productName', label: 'Descripción', type: 'text', w: 2 },
     { k: 'targetQty', label: 'Meta', type: 'num' },
-    { k: 'unit', label: 'Unidad', type: 'text' },
+    // con otras unidades admitidas (p. ej. packs o bandejas) la unidad se elige de la lista
+    sp?.altUnits?.length ? { k: 'unit', label: 'Unidad', type: 'select', required: true, options: [sp.um, ...sp.altUnits].map((u: string) => [u, u] as [string, string]) } : { k: 'unit', label: 'Unidad', type: 'text' },
     { k: 'notes', label: 'Observación', type: 'textarea', w: 2 },
   ];
   const crear = async (v: Record<string, any>) => {

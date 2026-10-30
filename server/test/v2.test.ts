@@ -24,7 +24,7 @@ describe('clientes y proyectos', () => {
     expect(names('FRITOLAY', 'SAN-JUAN')).toEqual(['Maquilado de cartón']);
     expect(names('COCACOLA', 'Z11')).toEqual(['Trasiego de envase', 'Trasiego de tarimas', 'Armado de packs', 'Desarme']);
     expect(names('ALNOST', 'Z11')).toEqual(['Validación de fechas']); expect(names('XPORTA', 'Z11')).toEqual(['Etiquetado']);
-    expect(names('LICORERA', 'Z11')).toEqual(['Maquila de ofertas']); expect(names('CEBOLLINES', 'Z11')).toEqual(['Maquila de packs']);
+    expect(names('LICORERA', 'Z11')).toEqual(['Maquila de ofertas']); expect(names('CEBOLLINES', 'Z11')).toEqual(['Armado de packs']);
   });
   it('registro genérico de otro cliente: requiere proyecto, no afecta el motor de Fritolay', async () => {
     const o = await as('operador', 'Z11');

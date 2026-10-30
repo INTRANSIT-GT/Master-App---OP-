@@ -99,7 +99,7 @@ la matriz; lo editable es qué secciones ve cada perfil.
 FUENTE: lista de sedes, clientes, proyectos y actividades entregada por Ing. Carmen el 2026-10-30.
 DECISIONES APROBADAS (Ing. Carmen, 2026-10-30): dos categorías de servicio, **Maquila** (la principal) y
 **Outsourcing**; la actividad es obligatoria; el cartón A, B y C se cobra con la misma tarifa; una sede puede
-tener solo maquilas.
+tener solo maquilas; Cebollines registra en packs o bandejas; en Z11 cada proyecto es a la vez su actividad.
 
 Los **clientes son comunes** (Fritolay trabaja en Omnia y en San Juan); los **proyectos son de una
 sede** (`projects.sede_id`). Cada proyecto puede tener:
@@ -110,15 +110,16 @@ sede** (`projects.sede_id`). Cada proyecto puede tener:
 | Actividades (`project_activities`) | qué parte del proyecto se trabaja; si el proyecto tiene actividades, elegir una es obligatorio | Walmart: revisión, trasiego, cambio de etiqueta, flejado |
 | Confirmación previa (`confirm_label`) | la orden no se inicia sin registrar lo que confirmó el cliente | Xporta: exportador; Alnost: producto y fecha validados por WhatsApp |
 | Desglose de salida (`output_parts`) | al cerrar se registra cada parte y la cantidad producida es su suma | San Juan: cartón A, B y C |
+| Otras unidades (`alt_units`) | unidades admitidas en la orden además de la del proyecto | Cebollines: PACK o BANDEJA |
 | Nota de proceso (`process_notes`) | se muestra al programar | Cebollines: manga, túnel, etiqueta EAN y etiqueta en blanco |
 
 | Sede | Cliente | Proyectos (actividades) |
 |---|---|---|
 | Omnia | Fritolay | Maquila: Maquila (armado de ofertas y packs) · Walmart (revisión, trasiego, cambio de etiqueta, flejado) · Etiquetado · Descargas (de contenedores) · Embolsado Cobán (de ofertas) · Crackets (ristra). Outsourcing: Unisuper · Dollar City · Revisión · Sunchips |
-| Z11 | Coca Cola | Trasiego de envase · Trasiego de tarimas · Armado de packs · Desarme |
+| Z11 | Coca Cola | Trasiego de envase · Trasiego de tarimas · Armado de packs · Desarme (en Z11 cada proyecto es también su única actividad) |
 | Z11 | Alnost | Validación de fechas (confirmación previa) |
 | Z11 | Xporta | Etiquetado (confirmación previa del exportador) |
-| Z11 | Cebollines | Maquila de packs (nota de proceso) |
+| Z11 | Cebollines | Armado de packs (nota de proceso; en packs o bandejas) |
 | Z11 | Licorera | Maquila de ofertas |
 | San Juan | Fritolay | Maquilado de cartón (amarre, tachado, clasificación; salida en cartón A, B y C) |
 
@@ -205,7 +206,7 @@ sin convivencia. Las tarifas siguen separadas: `master.tarifas` para viajes y
 | 7 | Transportes | `origen/lineas`, factura de maquila y tablero consolidado | después de producción |
 | 8 | Ambos | clientes compartidos, migración de datos y pruebas de volumen | después de producción |
 | 9 | OP | sincronización con GEOVICTORIA | cuando la API esté disponible |
-| 5b | OP | proyectos por sede, categorías, actividades, confirmación previa y desglose (migración 008) | **hecho** (commit); falta aplicarlo en Supabase |
+| 5b | OP | proyectos por sede, categorías, actividades, confirmación previa y desglose (migración 008) | **hecho** (en `main`); falta aplicarlo en Supabase |
 
 ### Estado desplegado al 2026-10-28
 
